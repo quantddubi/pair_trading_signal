@@ -35,9 +35,9 @@ wheels/
 *.xls
 # *.csv  <- 주석 처리하여 CSV 파일 허용
 
-# Cache
-cache/
-*.pkl
+# Cache (default 캐시 파일은 허용)
+# cache/  <- 주석 처리하여 캐시 디렉토리 허용
+# *.pkl   <- 주석 처리하여 pkl 파일 허용
 *.pickle
 
 # OS
