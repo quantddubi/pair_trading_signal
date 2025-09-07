@@ -13,8 +13,14 @@ import sys
 import os
 import importlib.util
 
+# 경로 설정 유틸리티
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+from utils_path import setup_path, get_data_file_path
+
 # 프로젝트 루트 경로 추가
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+project_root = setup_path()
 sys.path.insert(0, project_root)
 
 # 동적 모듈 import
@@ -49,13 +55,13 @@ st.set_page_config(
 @st.cache_data
 def load_price_data():
     """가격 데이터 로딩"""
-    file_path = "data/MU Price(BBG).csv"
+    file_path = get_data_file_path()
     return load_data(file_path)
 
 @st.cache_data
 def load_asset_names():
     """자산 이름 매핑 로딩 (CSV 파일의 1행: 티커, 2행: 이름)"""
-    file_path = "data/MU Price(BBG).csv"
+    file_path = get_data_file_path()
     
     with open(file_path, 'r') as f:
         ticker_line = f.readline().strip()
