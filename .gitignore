@@ -30,10 +30,10 @@ wheels/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# Data files (큰 데이터 파일은 제외)
-*.csv
+# Data files (큰 데이터 파일은 제외하되 MU Price 파일은 허용)
 *.xlsx
 *.xls
+# *.csv  <- 주석 처리하여 CSV 파일 허용
 
 # Cache
 cache/
