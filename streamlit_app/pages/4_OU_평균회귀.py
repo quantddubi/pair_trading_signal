@@ -48,13 +48,13 @@ st.set_page_config(
 @st.cache_data
 def load_price_data():
     """가격 데이터 로딩"""
-    file_path = "/Users/a/PycharmProjects/pair_trading_signal/data/MU Price(BBG).csv"
+    file_path = "data/MU Price(BBG).csv"
     return load_data(file_path)
 
 @st.cache_data
 def load_asset_names():
     """자산 이름 매핑 로딩 (CSV 파일의 1행: 티커, 2행: 이름)"""
-    file_path = "/Users/a/PycharmProjects/pair_trading_signal/data/MU Price(BBG).csv"
+    file_path = "data/MU Price(BBG).csv"
     
     with open(file_path, 'r') as f:
         ticker_line = f.readline().strip()
