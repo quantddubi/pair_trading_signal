@@ -30,25 +30,21 @@ def get_data_file_path():
         "/mount/src/pair_trading_signal/streamlit_app/MU Price(BBG).csv",  # Streamlit Cloud streamlit_app 내부
     ]
     
-    # 디버깅용 경로 출력
-    print(f"[DEBUG] Project root: {project_root}")
-    print(f"[DEBUG] Current working directory: {os.getcwd()}")
-    
-    # 데이터 디렉토리 확인
-    data_dir = os.path.join(project_root, "data")
-    print(f"[DEBUG] Data directory exists: {os.path.exists(data_dir)}")
-    if os.path.exists(data_dir):
-        print(f"[DEBUG] Files in data directory: {os.listdir(data_dir)}")
-    
+    # 첫 번째 경로부터 시도
     for path in possible_paths:
-        print(f"[DEBUG] Trying path: {path}")
-        print(f"[DEBUG] File exists: {os.path.exists(path)}")
         if os.path.exists(path):
-            print(f"[DEBUG] Using path: {path}")
+            print(f"[INFO] Data file found: {path}")
             return path
     
-    # 모든 경로가 실패한 경우
-    print(f"[ERROR] No data file found in any of these paths: {possible_paths}")
+    # 모든 경로가 실패한 경우 디버그 정보 출력
+    print(f"[ERROR] No data file found!")
+    print(f"[DEBUG] Project root: {project_root}")
+    data_dir = os.path.join(project_root, "data")
+    if os.path.exists(data_dir):
+        print(f"[DEBUG] Files in data directory: {os.listdir(data_dir)}")
+    else:
+        print(f"[DEBUG] Data directory does not exist: {data_dir}")
+    
     return possible_paths[0]  # 첫 번째 경로 반환 (오류 메시지용)
 
 def setup_path():
