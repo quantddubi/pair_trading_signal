@@ -22,9 +22,12 @@ def get_data_file_path():
     # 여러 가능한 경로 시도
     possible_paths = [
         os.path.join(project_root, "data", "MU Price(BBG).csv"),
+        os.path.join(project_root, "streamlit_app", "MU Price(BBG).csv"),  # streamlit_app 내부
+        os.path.join(os.path.dirname(__file__), "MU Price(BBG).csv"),  # utils_path.py와 같은 폴더
         os.path.join(project_root, "data", "MU_Price_BBG.csv"),  # 괄호 없는 버전
         os.path.join(project_root, "MU Price(BBG).csv"),  # 루트에 직접
         "/mount/src/pair_trading_signal/data/MU Price(BBG).csv",  # Streamlit Cloud 절대 경로
+        "/mount/src/pair_trading_signal/streamlit_app/MU Price(BBG).csv",  # Streamlit Cloud streamlit_app 내부
     ]
     
     # 디버깅용 경로 출력

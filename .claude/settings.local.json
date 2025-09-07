@@ -22,7 +22,13 @@
       "Bash(__NEW_LINE__ sed -i '' 's|from ../utils.common_utils import|from ..utils.common_utils import|g' *.py)",
       "Bash(ls:*)",
       "Bash(__NEW_LINE__ sed -i '' 's|import osimport importlib.util|import os\\nimport importlib.util|g' *.py)",
-      "Bash(__NEW_LINE__ for file in *.py)"
+      "Bash(__NEW_LINE__ for file in *.py)",
+      "Bash(cat:*)",
+      "Bash(for:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:taapair.streamlit.app)"
     ],
     "deny": []
   }
