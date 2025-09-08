@@ -551,7 +551,6 @@ def main():
             "기간",
             time_options,
             index=1,  # 기본값: 3년
-            help="상관관계 분석에 사용할 시간 범위입니다. 긴 기간일수록 더 안정적이지만 데이터가 부족한 자산은 제외됩니다"
         )
     
     with col3:
@@ -596,20 +595,7 @@ def main():
                 
                 # 실제 매트릭스에 표시된 자산들만 고려하여 범례 표시
                 display_correlation_legend(method_pairs, displayed_tickers)
-                
-                # 분석 기간별 특성 안내
-                time_characteristics = {
-                    '1년': "최근 시장 트렌드와 단기적 상관관계 변화에 민감",
-                    '3년': "중기적 안정성과 최근 변화의 균형적 반영",
-                    '5년': "장기적 안정성 높음, 구조적 상관관계 파악에 적합", 
-                    '10년': "매우 안정적이지만 최근 변화 반영도 낮음",
-                    '전체': "역사적 전체 기간, 가장 안정적이지만 오래된 패턴 포함"
-                }
-                
-                if selected_time_period in time_characteristics:
-                    st.info(f"📊 **{selected_time_period} 분석의 특징**: {time_characteristics[selected_time_period]}")
-                    
-                st.caption("💡 **매트릭스 사용법**: 색상이 진할수록 높은 상관관계 (빨강: 양의 상관, 파랑: 음의 상관). 색칠된 테두리 박스는 각 방법론에서 선정된 진입 페어를 나타냅니다.")
+
 
     except Exception as e:
         st.error(f"상관관계 매트릭스 생성 중 오류 발생: {str(e)}")
