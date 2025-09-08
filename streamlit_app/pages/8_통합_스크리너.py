@@ -50,6 +50,173 @@ st.set_page_config(
 st.title("📊 통합 페어트레이딩 스크리너")
 st.markdown("---")
 
+def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapping):
+    """
+    전체 자산 상관관계 매트릭스 생성 (방법론별 페어 강조)
+    
+    Args:
+        prices: 가격 데이터
+        all_pairs_by_method: 방법론별 선정된 페어들 {method: [pairs]}
+        asset_mapping: 자산 이름 매핑
+    """
+    # 최근 3년 데이터로 상관관계 계산
+    end_date = prices.index[-1]
+    start_date = end_date - timedelta(days=3*365)  # 3년
+    
+    recent_data = prices.loc[start_date:end_date].fillna(method='ffill')
+    
+    # 수익률 계산
+    returns = recent_data.pct_change().dropna()
+    
+    # 상관관계 매트릭스 계산
+    correlation_matrix = returns.corr()
+    
+    # 자산 이름 가져오기
+    assets = correlation_matrix.columns.tolist()
+    n_assets = len(assets)
+    
+    # 방법론별 색상 정의
+    method_colors = {
+        'euclidean': '#FF6B6B',      # 빨간색
+        'ssd': '#4ECDC4',            # 청록색
+        'cointegration': '#45B7D1',  # 파란색
+        'regime': '#FFA07A',         # 연어색
+        'ou': '#98D8C8',             # 민트색
+        'clustering': '#F7DC6F',     # 노란색
+        'copula': '#BB8FCE'          # 보라색
+    }
+    
+    method_names = {
+        'euclidean': '유클리드',
+        'ssd': 'SSD',
+        'cointegration': '공적분',
+        'regime': '상관레짐',
+        'ou': 'OU',
+        'clustering': '클러스터',
+        'copula': '코퓰라'
+    }
+    
+    # Plotly 히트맵 생성
+    fig = go.Figure()
+    
+    # 기본 상관관계 히트맵
+    fig.add_trace(
+        go.Heatmap(
+            z=correlation_matrix.values,
+            x=[asset[:8] + '...' if len(asset) > 10 else asset for asset in assets],  # 축 레이블 단축
+            y=[asset[:8] + '...' if len(asset) > 10 else asset for asset in assets],
+            colorscale='RdBu',
+            zmid=0,
+            zmin=-1,
+            zmax=1,
+            colorbar=dict(
+                title="상관계수",
+                titleside="right",
+                tickmode="linear",
+                tick0=-1,
+                dtick=0.5
+            ),
+            hovertemplate='<b>%{y}</b> vs <b>%{x}</b><br>상관계수: %{z:.3f}<extra></extra>',
+            showscale=True
+        )
+    )
+    
+    # 방법론별 페어에 테두리 박스 추가
+    shapes = []
+    annotations = []
+    
+    for method, pairs in all_pairs_by_method.items():
+        if not pairs:
+            continue
+            
+        color = method_colors.get(method, '#000000')
+        
+        for pair in pairs[:10]:  # 상위 10개만 표시 (너무 많으면 복잡)
+            try:
+                asset1, asset2 = pair.split('-')
+                if asset1 in assets and asset2 in assets:
+                    i = assets.index(asset1)
+                    j = assets.index(asset2)
+                    
+                    # 대칭 위치에 박스 추가
+                    for x, y in [(i, j), (j, i)]:
+                        shapes.append(
+                            dict(
+                                type="rect",
+                                x0=x-0.4, y0=y-0.4,
+                                x1=x+0.4, y1=y+0.4,
+                                line=dict(color=color, width=3),
+                                fillcolor="rgba(0,0,0,0)"  # 투명 배경
+                            )
+                        )
+            except:
+                continue
+    
+    # 레이아웃 설정
+    fig.update_layout(
+        title=dict(
+            text="전체 자산 상관관계 매트릭스 (최근 3년)<br><sub>박스 테두리: 각 방법론별 선정 페어</sub>",
+            x=0.5,
+            font=dict(size=16)
+        ),
+        width=800,
+        height=700,
+        xaxis=dict(
+            tickangle=45,
+            tickfont=dict(size=8),
+            side='bottom'
+        ),
+        yaxis=dict(
+            tickfont=dict(size=8),
+            autorange='reversed'  # y축 뒤집기
+        ),
+        shapes=shapes,
+        annotations=annotations,
+        margin=dict(l=100, r=100, t=100, b=100)
+    )
+    
+    return fig
+
+def create_correlation_legend(all_pairs_by_method):
+    """방법론별 색상 범례 생성"""
+    method_colors = {
+        'euclidean': '#FF6B6B',
+        'ssd': '#4ECDC4', 
+        'cointegration': '#45B7D1',
+        'regime': '#FFA07A',
+        'ou': '#98D8C8',
+        'clustering': '#F7DC6F',
+        'copula': '#BB8FCE'
+    }
+    
+    method_names = {
+        'euclidean': '유클리드 거리',
+        'ssd': 'SSD 거리',
+        'cointegration': '공적분',
+        'regime': '상관관계 레짐',
+        'ou': 'OU 평균회귀',
+        'clustering': '클러스터링',
+        'copula': '코퓰라 순위상관'
+    }
+    
+    legend_html = "<div style='display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin: 10px 0;'>"
+    
+    for method, pairs in all_pairs_by_method.items():
+        if pairs:  # 선정된 페어가 있는 방법론만 표시
+            color = method_colors.get(method, '#000000')
+            name = method_names.get(method, method)
+            count = len(pairs)
+            
+            legend_html += f"""
+            <div style='display: flex; align-items: center; gap: 5px;'>
+                <div style='width: 20px; height: 20px; border: 3px solid {color}; background: transparent;'></div>
+                <span style='font-size: 12px; font-weight: bold;'>{name} ({count}개)</span>
+            </div>
+            """
+    
+    legend_html += "</div>"
+    return legend_html
+
 # 캐시된 데이터 로딩 함수들
 @st.cache_data
 def load_price_data():
@@ -252,9 +419,10 @@ def main():
     
     st.markdown("---")
     
-    # 방법론별 페어 선정 현황
-    st.subheader("방법론별 페어 선정 현황")
+    # 전체 자산 상관관계 매트릭스 (방법론별 페어 하이라이트)
+    st.subheader("전체 자산 상관관계 매트릭스 (최근 3년)")
     
+    # 방법론별 진입 페어 수집
     method_pairs = {}
     for method in methods:
         cache_data = cache_utils.load_cache(method)
@@ -263,6 +431,28 @@ def main():
             method_pairs[method] = [signal['pair'] for signal in enter_signals]
         else:
             method_pairs[method] = []
+    
+    # 상관관계 매트릭스 생성 및 표시
+    try:
+        with st.spinner("상관관계 매트릭스 생성 중..."):
+            correlation_fig = create_correlation_matrix_with_pairs(prices, method_pairs, asset_mapping)
+            st.plotly_chart(correlation_fig, use_container_width=True)
+            
+            # 방법론별 색상 범례 표시
+            legend_html = create_correlation_legend(method_pairs)
+            st.markdown(legend_html, unsafe_allow_html=True)
+            
+            st.info("💡 **매트릭스 해석 가이드:**\n"
+                   "- 색상이 진할수록 높은 상관관계 (빨강: 양의 상관, 파랑: 음의 상관)\n"
+                   "- 색칠된 테두리 박스: 각 방법론에서 선정된 진입 페어\n"
+                   "- 마우스 오버: 두 자산 간 정확한 상관계수 확인 가능")
+    except Exception as e:
+        st.error(f"상관관계 매트릭스 생성 중 오류 발생: {str(e)}")
+    
+    st.markdown("---")
+    
+    # 방법론별 페어 선정 현황
+    st.subheader("방법론별 페어 선정 현황")
     
     # 방법론별 페어 리스트 표시
     method_cols = st.columns(len(methods))
