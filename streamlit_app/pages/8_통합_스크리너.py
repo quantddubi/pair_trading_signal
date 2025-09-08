@@ -71,6 +71,12 @@ def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapp
     # 상관관계 매트릭스 계산
     correlation_matrix = returns.corr()
     
+    # 상삼각형을 NaN으로 만들어서 하삼각형만 표시 (대각선 포함)
+    import numpy as np
+    mask = np.triu(np.ones_like(correlation_matrix, dtype=bool), k=1)
+    correlation_matrix_lower = correlation_matrix.copy()
+    correlation_matrix_lower[mask] = np.nan
+    
     # 자산 티커와 이름 가져오기
     tickers = correlation_matrix.columns.tolist()
     n_assets = len(tickers)
@@ -102,10 +108,10 @@ def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapp
     # Plotly 히트맵 생성
     fig = go.Figure()
     
-    # 기본 상관관계 히트맵
+    # 기본 상관관계 히트맵 (하삼각형만)
     fig.add_trace(
         go.Heatmap(
-            z=correlation_matrix.values,
+            z=correlation_matrix_lower.values,
             x=[name[:12] + '...' if len(name) > 15 else name for name in display_names],  # 자산 이름으로 표시
             y=[name[:12] + '...' if len(name) > 15 else name for name in display_names],
             colorscale='RdBu',
@@ -157,7 +163,7 @@ def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapp
     # 레이아웃 설정
     fig.update_layout(
         title=dict(
-            text="전체 자산 상관관계 매트릭스 (최근 3년)<br><sub>박스 테두리: 각 방법론별 선정 페어</sub>",
+            text="전체 자산 상관관계 매트릭스 (최근 3년)<br><sub>하삼각형 표시, 박스 테두리: 각 방법론별 선정 페어</sub>",
             x=0.5,
             font=dict(size=16)
         ),
