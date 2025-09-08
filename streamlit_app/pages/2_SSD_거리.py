@@ -506,8 +506,7 @@ def main():
     "Pairs Trading: Performance of a Relative-Value Arbitrage Rule". 
     *The Review of Financial Studies*, 19(3), 797-827.
     
-    이 방법론은 Wall Street의 실제 페어트레이딩 전략을 학술적으로 구현한 것으로, 
-    실무에서 검증된 수익성을 보여줍니다.
+    이 방법론은 Wall Street의 실제 페어트레이딩 전략을 학술적으로 구현한 것
     """)
 
 # Streamlit 페이지로 실행

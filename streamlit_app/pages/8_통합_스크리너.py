@@ -217,10 +217,10 @@ def main():
     
     # 캐시 상태 표시
     st.subheader("방법론별 캐시 상태")
-    cols = st.columns(6)
-    methods = ['euclidean', 'cointegration', 'regime', 'ou', 'clustering', 'copula']
-    method_names = ['유클리드 거리', '공적분', '상관관계 레짐', 'OU 평균회귀', '클러스터링', '코퓰라 순위상관']
-    method_icons = ['📐', '🔗', '📈', '🔄', '🧠', '🎲']
+    cols = st.columns(7)
+    methods = ['euclidean', 'ssd', 'cointegration', 'regime', 'ou', 'clustering', 'copula']
+    method_names = ['유클리드 거리', 'SSD 거리', '공적분', '상관관계 레짐', 'OU 평균회귀', '클러스터링', '코퓰라 순위상관']
+    method_icons = ['📐', '📊', '🔗', '📈', '🔄', '🧠', '🎲']
     
     for i, (method, name, icon) in enumerate(zip(methods, method_names, method_icons)):
         with cols[i]:
@@ -238,6 +238,7 @@ def main():
         | 방법론 | 핵심 특징 | 장점 | 적합한 상황 |
         |--------|-----------|------|-------------|
         | 📐 **유클리드 거리** | 가격 경로 유사성 | 계산 빠름, 직관적 | 단순하고 안정적인 페어 |
+        | 📊 **SSD 거리** | 누적수익률 제곱편차 | 실무적, 정교한 측정 | 배당 고려한 실전 트레이딩 |
         | 🔗 **공적분** | 장기 균형관계 | 이론적 근거 강함 | 장기 투자, 펀더멘털 연관 |
         | 📈 **상관관계 레짐** | 동적 상관관계 변화 | 시장 환경 적응 | 변동성 큰 시장 |
         | 🔄 **OU 평균회귀** | 평균회귀 속도 최적화 | 수학적 정교함 | 안정적 평균회귀 |
