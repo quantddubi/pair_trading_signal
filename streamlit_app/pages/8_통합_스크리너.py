@@ -215,6 +215,10 @@ def main():
     # 모든 방법론의 캐시 정보 가져오기
     cache_info = cache_utils.get_cache_info()
     
+    # SSD 캐시 없음 알림
+    if not cache_info.get('ssd', {}).get('exists', False):
+        st.warning("⚠️ SSD 거리 방법론의 캐시가 없습니다. `python generate_cache.py`를 실행하여 전체 캐시를 생성하세요.")
+    
     # 캐시 상태 표시
     st.subheader("방법론별 캐시 상태")
     cols = st.columns(7)
@@ -273,7 +277,10 @@ def main():
                 if len(pairs) > 5:
                     st.caption(f"... (+{len(pairs)-5}개)")
             else:
-                st.caption("선정 페어 없음")
+                if method == 'ssd':
+                    st.caption("캐시 없음 (생성 필요)")
+                else:
+                    st.caption("선정 페어 없음")
     
     st.markdown("---")
     

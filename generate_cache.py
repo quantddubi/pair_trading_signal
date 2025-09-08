@@ -97,6 +97,59 @@ def generate_euclidean_cache():
     print(f"✅ 유클리드 거리 캐시 저장 완료: {len(enter_list)}개 진입신호, {len(watch_list)}개 관찰대상")
     return len(enter_list), len(watch_list)
 
+def generate_ssd_cache():
+    """SSD 거리 방법론 캐시 생성"""
+    print("🔄 SSD 거리 방법론 캐시 생성 중...")
+    
+    file_path = "data/MU Price(BBG).csv"
+    prices = common_utils.load_data(file_path)
+    
+    # 기본 파라미터로 분석
+    trader = ssd_module.SSDDistancePairTrading(
+        formation_window=252,
+        signal_window=252,
+        enter_threshold=2.0,
+        exit_threshold=0.5,
+        stop_loss=3.0,
+        min_half_life=5,
+        max_half_life=60,
+        min_cost_ratio=5.0,
+        transaction_cost=0.0001
+    )
+    
+    enter_list, watch_list = trader.screen_pairs(prices, n_pairs=5)
+    
+    cache_data = {
+        'enter_signals': enter_list,
+        'watch_signals': watch_list,
+        'parameters': {
+            'formation_window': 252,
+            'signal_window': 252,
+            'enter_threshold': 2.0,
+            'exit_threshold': 0.5,
+            'stop_loss': 3.0,
+            'min_half_life': 5,
+            'max_half_life': 60,
+            'min_cost_ratio': 5.0,
+            'transaction_cost': 0.0001
+        },
+        'generated_at': datetime.now().isoformat(),
+        'data_last_date': get_data_last_date()
+    }
+    
+    # 캐시 디렉토리 생성
+    cache_dir = "cache"
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
+    
+    # 캐시 저장
+    cache_file = os.path.join(cache_dir, "ssd_default.pkl")
+    with open(cache_file, 'wb') as f:
+        pickle.dump(cache_data, f)
+    
+    print(f"✅ SSD 거리 캐시 저장 완료: {len(enter_list)}개 진입신호, {len(watch_list)}개 관찰대상")
+    return len(enter_list), len(watch_list)
+
 def generate_cointegration_cache():
     """공적분 방법론 캐시 생성"""
     print("🔄 공적분 방법론 캐시 생성 중...")
@@ -342,6 +395,7 @@ def main():
     try:
         # 각 방법론별 캐시 생성 (시간이 오래 걸리므로 순차적으로)
         generate_euclidean_cache()
+        generate_ssd_cache()
         generate_cointegration_cache()
         generate_regime_cache() 
         generate_ou_cache()
