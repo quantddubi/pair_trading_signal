@@ -30,11 +30,12 @@ common_utils = import_module_from_file("utils/common_utils.py", "common_utils")
 
 # 각 방법론 모듈
 euclidean_module = import_module_from_file("methods/1_euclidean_distance_pairs.py", "euclidean_distance_pairs")
-cointegration_module = import_module_from_file("methods/2_cointegration_pairs.py", "cointegration_pairs")
-regime_module = import_module_from_file("methods/3_correlation_regime_pairs.py", "correlation_regime_pairs")
-ou_module = import_module_from_file("methods/4_ou_mean_reversion_pairs.py", "ou_mean_reversion_pairs")
-clustering_module = import_module_from_file("methods/5_clustering_pairs.py", "clustering_pairs")
-copula_module = import_module_from_file("methods/6_copula_rank_correlation_pairs.py", "copula_rank_correlation_pairs")
+ssd_module = import_module_from_file("methods/2_ssd_distance_pairs.py", "ssd_distance_pairs")
+cointegration_module = import_module_from_file("methods/3_cointegration_pairs.py", "cointegration_pairs")
+regime_module = import_module_from_file("methods/4_correlation_regime_pairs.py", "correlation_regime_pairs")
+ou_module = import_module_from_file("methods/5_ou_mean_reversion_pairs.py", "ou_mean_reversion_pairs")
+clustering_module = import_module_from_file("methods/6_clustering_pairs.py", "clustering_pairs")
+copula_module = import_module_from_file("methods/7_copula_rank_correlation_pairs.py", "copula_rank_correlation_pairs")
 
 def get_data_last_date():
     """데이터의 마지막 날짜 확인"""

@@ -19,7 +19,7 @@ def import_module_from_file(file_path, module_name):
 
 # 모듈 import
 common_utils = import_module_from_file("utils/common_utils.py", "common_utils")
-cointegration_module = import_module_from_file("methods/2_cointegration_pairs.py", "cointegration_pairs")
+cointegration_module = import_module_from_file("methods/3_cointegration_pairs.py", "cointegration_pairs")
 
 load_data = common_utils.load_data
 CointegrationPairTrading = cointegration_module.CointegrationPairTrading
