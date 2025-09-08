@@ -66,7 +66,7 @@ def get_asset_categories():
         '기타': ['VIX Index']
     }
 
-def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapping, selected_category='전체', category_assets=None):
+def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapping, selected_category='전체', category_assets=None, time_period='3년'):
     """
     자산 상관관계 매트릭스 생성 (방법론별 페어 강조)
     
@@ -76,21 +76,55 @@ def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapp
         asset_mapping: 자산 이름 매핑
         selected_category: 선택된 카테고리 이름
         category_assets: 표시할 자산 리스트 (None이면 전체)
+        time_period: 시간 범위 ('1년', '3년', '5년', '10년', '전체')
     """
-    # 최근 3년 데이터로 상관관계 계산
+    # 시간 범위별 날짜 계산
     end_date = prices.index[-1]
-    start_date = end_date - timedelta(days=3*365)  # 3년
     
-    recent_data = prices.loc[start_date:end_date].fillna(method='ffill')
+    time_mapping = {
+        '1년': 365,
+        '3년': 3 * 365,
+        '5년': 5 * 365,
+        '10년': 10 * 365,
+        '전체': None
+    }
     
-    # 카테고리별 자산 필터링
+    if time_period == '전체':
+        start_date = prices.index[0]
+        period_days = (end_date - start_date).days
+    else:
+        period_days = time_mapping.get(time_period, 3 * 365)
+        start_date = end_date - timedelta(days=period_days)
+    
+    recent_data = prices.loc[start_date:end_date]
+    
+    # 데이터 충분성 확인 (최소 50%의 데이터 필요)
+    min_data_points = len(recent_data) * 0.5
+    sufficient_assets = []
+    
+    for col in recent_data.columns:
+        non_null_count = recent_data[col].notna().sum()
+        if non_null_count >= min_data_points:
+            sufficient_assets.append(col)
+    
+    if len(sufficient_assets) < 2:
+        st.error(f"{time_period} 기간에 충분한 데이터가 있는 자산이 부족합니다.")
+        return None, []
+    
+    # 카테고리별 자산 필터링 (충분한 데이터가 있는 자산만)
     if category_assets is not None:
-        # 선택된 카테고리 자산만 사용
-        available_assets = [asset for asset in category_assets if asset in recent_data.columns]
+        # 선택된 카테고리이면서 충분한 데이터가 있는 자산만 사용
+        available_assets = [asset for asset in category_assets if asset in sufficient_assets]
         if len(available_assets) < 2:
-            st.error(f"{selected_category} 카테고리에 충분한 데이터가 없습니다.")
-            return None
+            st.error(f"{selected_category} 카테고리에서 {time_period} 기간에 충분한 데이터가 있는 자산이 부족합니다.")
+            return None, []
         recent_data = recent_data[available_assets]
+    else:
+        # 전체 자산 중 충분한 데이터가 있는 자산만 사용
+        recent_data = recent_data[sufficient_assets]
+    
+    # 결측치 처리
+    recent_data = recent_data.fillna(method='ffill')
     
     # 수익률 계산
     returns = recent_data.pct_change().dropna()
@@ -190,7 +224,7 @@ def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapp
     # 레이아웃 설정
     fig.update_layout(
         title=dict(
-            text=f"{selected_category} 자산 상관관계 매트릭스 (최근 3년)<br><sub>하삼각형 표시, 박스 테두리: 각 방법론별 선정 페어</sub>",
+            text=f"{selected_category} 자산 상관관계 매트릭스 ({time_period})<br><sub>하삼각형 표시, 박스 테두리: 각 방법론별 선정 페어 | 자산 수: {len(display_names)}개</sub>",
             x=0.5,
             font=dict(size=18)
         ),
@@ -210,10 +244,10 @@ def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapp
         margin=dict(l=100, r=100, t=100, b=100)
     )
     
-    return fig
+    return fig, tickers
 
-def display_correlation_legend(all_pairs_by_method):
-    """방법론별 색상 범례를 Streamlit 컬럼으로 표시"""
+def display_correlation_legend(all_pairs_by_method, displayed_assets=None):
+    """방법론별 색상 범례를 Streamlit 컬럼으로 표시 (실제 매트릭스에 표시된 페어만)"""
     method_colors = {
         'euclidean': '#FF6B6B',
         'ssd': '#4ECDC4', 
@@ -234,11 +268,25 @@ def display_correlation_legend(all_pairs_by_method):
         'copula': '코퓰라 순위상관'
     }
     
-    # 페어가 있는 방법론만 수집
+    # 실제 매트릭스에 표시된 페어가 있는 방법론만 수집
     active_methods = []
     for method, pairs in all_pairs_by_method.items():
         if pairs:
-            active_methods.append((method, pairs))
+            # displayed_assets가 제공된 경우, 해당 자산들로 구성된 페어만 필터링
+            if displayed_assets is not None:
+                visible_pairs = []
+                for pair in pairs:
+                    try:
+                        asset1, asset2 = pair.split('-')
+                        if asset1 in displayed_assets and asset2 in displayed_assets:
+                            visible_pairs.append(pair)
+                    except:
+                        continue
+                
+                if visible_pairs:  # 실제로 표시되는 페어가 있는 경우만
+                    active_methods.append((method, visible_pairs))
+            else:
+                active_methods.append((method, pairs))
     
     if not active_methods:
         st.info("선정된 페어가 없습니다.")
@@ -484,8 +532,8 @@ def main():
     st.subheader("📊 자산별 상관관계 분석")
     categories = get_asset_categories()
     
-    # 카테고리 선택
-    col1, col2 = st.columns([1, 3])
+    # 카테고리 및 시간 범위 선택
+    col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
         st.markdown("**자산 카테고리 선택:**")
         category_options = ['전체'] + list(categories.keys())
@@ -497,8 +545,18 @@ def main():
         )
     
     with col2:
+        st.markdown("**분석 기간 선택:**")
+        time_options = ['1년', '3년', '5년', '10년', '전체']
+        selected_time_period = st.selectbox(
+            "기간",
+            time_options,
+            index=1,  # 기본값: 3년
+            help="상관관계 분석에 사용할 시간 범위입니다. 긴 기간일수록 더 안정적이지만 데이터가 부족한 자산은 제외됩니다"
+        )
+    
+    with col3:
         if selected_category == '전체':
-            st.info("💡 **전체 자산 표시 중**: 89개 자산이 모두 표시되어 세부 내용이 작을 수 있습니다. 특정 카테고리를 선택하면 더 크고 명확하게 볼 수 있습니다.")
+            st.info(f"💡 **전체 자산 표시 중**: {selected_time_period} 기간으로 분석. 89개 자산이 모두 표시되어 세부 내용이 작을 수 있습니다. 특정 카테고리를 선택하면 더 크고 명확하게 볼 수 있습니다.")
             
             # 카테고리별 자산 수 요약
             with st.expander("📋 카테고리별 자산 수 요약", expanded=False):
@@ -509,13 +567,14 @@ def main():
                         st.metric(cat_name, f"{len(cat_assets)}개")
         else:
             category_assets = categories[selected_category]
-            st.success(f"**{selected_category}** 카테고리: {len(category_assets)}개 자산 선택됨")
+            st.success(f"**{selected_category}** 카테고리: {len(category_assets)}개 자산, **{selected_time_period}** 기간으로 분석")
             
             # 선택된 카테고리의 자산 목록 표시
             with st.expander(f"📋 {selected_category} 자산 목록", expanded=False):
                 asset_names = [f"{asset} ({asset_mapping.get(asset, asset)})" for asset in category_assets if asset in prices.columns]
                 if asset_names:
                     st.write(", ".join(asset_names))
+                    st.caption(f"💡 {selected_time_period} 기간에 데이터가 부족한 자산은 자동으로 제외됩니다.")
                 else:
                     st.warning("해당 카테고리에 사용 가능한 자산이 없습니다.")
     
@@ -523,26 +582,35 @@ def main():
     try:
         with st.spinner(f"{selected_category} 상관관계 매트릭스 생성 중..."):
             if selected_category == '전체':
-                correlation_fig = create_correlation_matrix_with_pairs(
-                    prices, method_pairs, asset_mapping, '전체', None
+                result = create_correlation_matrix_with_pairs(
+                    prices, method_pairs, asset_mapping, '전체', None, selected_time_period
                 )
             else:
-                correlation_fig = create_correlation_matrix_with_pairs(
-                    prices, method_pairs, asset_mapping, selected_category, categories[selected_category]
+                result = create_correlation_matrix_with_pairs(
+                    prices, method_pairs, asset_mapping, selected_category, categories[selected_category], selected_time_period
                 )
             
-            if correlation_fig:
+            if result and len(result) == 2:
+                correlation_fig, displayed_tickers = result
                 st.plotly_chart(correlation_fig, use_container_width=True)
                 
-                # 방법론별 색상 범례 표시
-                display_correlation_legend(method_pairs)
+                # 실제 매트릭스에 표시된 자산들만 고려하여 범례 표시
+                display_correlation_legend(method_pairs, displayed_tickers)
                 
-                st.info("💡 **매트릭스 해석 가이드:**\n"
-                       "- 색상이 진할수록 높은 상관관계 (빨강: 양의 상관, 파랑: 음의 상관)\n"
-                       "- 색칠된 테두리 박스: 각 방법론에서 선정된 진입 페어\n"
-                       "- 마우스 오버: 두 자산 간 정확한 상관계수 확인 가능\n"
-                       "- 💡 **팁**: 다른 자산 카테고리를 선택하면 해당 분야의 상관관계를 더 자세히 볼 수 있습니다")
+                # 분석 기간별 특성 안내
+                time_characteristics = {
+                    '1년': "최근 시장 트렌드와 단기적 상관관계 변화에 민감",
+                    '3년': "중기적 안정성과 최근 변화의 균형적 반영",
+                    '5년': "장기적 안정성 높음, 구조적 상관관계 파악에 적합", 
+                    '10년': "매우 안정적이지만 최근 변화 반영도 낮음",
+                    '전체': "역사적 전체 기간, 가장 안정적이지만 오래된 패턴 포함"
+                }
                 
+                if selected_time_period in time_characteristics:
+                    st.info(f"📊 **{selected_time_period} 분석의 특징**: {time_characteristics[selected_time_period]}")
+                    
+                st.caption("💡 **매트릭스 사용법**: 색상이 진할수록 높은 상관관계 (빨강: 양의 상관, 파랑: 음의 상관). 색칠된 테두리 박스는 각 방법론에서 선정된 진입 페어를 나타냅니다.")
+
     except Exception as e:
         st.error(f"상관관계 매트릭스 생성 중 오류 발생: {str(e)}")
     
