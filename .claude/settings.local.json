@@ -1,35 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python:*)",
-      "Bash(timeout:*)",
-      "Bash(cp:*)",
-      "Bash(rm:*)",
-      "Bash(mv:*)",
-      "Bash(streamlit run:*)",
-      "Bash(pkill:*)",
-      "Bash(mkdir:*)",
-      "Bash(sed:*)",
-      "Bash(for file in *.py)",
-      "Bash(do)",
-      "Bash(echo:*)",
-      "Bash(done)",
-      "Bash(__NEW_LINE__ sed -i '' '\n    s/상관관계 레짐 상관관계 레짐/상관관계 레짐/g\n    s/클러스터링 클러스터링/클러스터링/g\n    s/코퓰라 순위상관 꼬리/꼬리/g\n' 7_🎲_통합_스크리너.py)",
-      "WebFetch(domain:docs.anthropic.com)",
-      "Bash(grep:*)",
-      "Bash(__NEW_LINE__ sed -i '' 's|/Users/a/PycharmProjects/pair_trading_signal/MU Price(BBG).csv|/Users/a/PycharmProjects/pair_trading_signal/data/MU Price(BBG).csv|g' methods/*.py generate_cointegration_cache.py quick_screener.py)",
-      "Bash(__NEW_LINE__ sed -i '' 's|from common_utils import|from ../utils.common_utils import|g' *.py)",
-      "Bash(__NEW_LINE__ sed -i '' 's|from ../utils.common_utils import|from ..utils.common_utils import|g' *.py)",
-      "Bash(ls:*)",
-      "Bash(__NEW_LINE__ sed -i '' 's|import osimport importlib.util|import os\\nimport importlib.util|g' *.py)",
-      "Bash(__NEW_LINE__ for file in *.py)",
-      "Bash(cat:*)",
-      "Bash(for:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git push:*)",
-      "WebFetch(domain:taapair.streamlit.app)"
+      "Bash(python:*)"
     ],
-    "deny": []
+    "deny": [],
+    "ask": []
   }
 }
