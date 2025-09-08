@@ -666,7 +666,10 @@ def main():
                             name = method_names[method_idx] if method_idx >= 0 else method
                             
                             st.write(f"**{icon} {name}**")
-                            st.write(f"**Z-Score:** {signal['current_zscore']:.2f}")
+                            if 'current_zscore' in signal:
+                                st.write(f"**Z-Score:** {signal['current_zscore']:.2f}")
+                            elif 'current_deviation' in signal:
+                                st.write(f"**편차:** {signal['current_deviation']:.2f}σ")
                             st.write(f"**방향:** {signal['direction']}")
                             if 'half_life' in signal:
                                 st.write(f"**반감기:** {signal['half_life']:.1f}일")
@@ -691,7 +694,10 @@ def main():
                     with col1:
                         st.metric("진입 방향", signal['direction'])
                     with col2:
-                        st.metric("Z-Score", f"{signal['current_zscore']:.2f}")
+                        if 'current_zscore' in signal:
+                            st.metric("Z-Score", f"{signal['current_zscore']:.2f}")
+                        elif 'current_deviation' in signal:
+                            st.metric("편차", f"{signal['current_deviation']:.2f}σ")
                     with col3:
                         if 'half_life' in signal:
                             st.metric("반감기", f"{signal['half_life']:.1f}일")
@@ -718,7 +724,7 @@ def main():
                                 - 중간: 스프레드 (가격 차이)
                                 - 하단: Z-스코어 ({name} 기반 신호)
                                 - 주황색 선: 진입 임계값 (±2.0)
-                                - 현재 Z-Score: {signal['current_zscore']:.2f}
+                                - 현재 Z-Score: {signal.get('current_zscore', signal.get('current_deviation', 0)):.2f}{'σ' if 'current_deviation' in signal else ''}
                                 - 진입 방향: {signal['direction']}
                                 """)
                             else:
@@ -742,7 +748,8 @@ def main():
             # 페어 이름 포맷팅
             formatted_pair = format_pair_name(signal['pair'], asset_mapping)
             
-            with st.expander(f"{i}. {formatted_pair} ({icon} {name}) - Z-Score: {signal['current_zscore']:.2f}"):
+            score_text = f"Z-Score: {signal['current_zscore']:.2f}" if 'current_zscore' in signal else f"편차: {signal['current_deviation']:.2f}σ" if 'current_deviation' in signal else "점수: N/A"
+            with st.expander(f"{i}. {formatted_pair} ({icon} {name}) - {score_text}"):
                 # 기본 정보 표시
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
@@ -751,7 +758,10 @@ def main():
                     else:
                         st.metric("상태", "관찰 중")
                 with col2:
-                    st.metric("Z-Score", f"{signal['current_zscore']:.2f}")
+                    if 'current_zscore' in signal:
+                        st.metric("Z-Score", f"{signal['current_zscore']:.2f}")
+                    elif 'current_deviation' in signal:
+                        st.metric("편차", f"{signal['current_deviation']:.2f}σ")
                 with col3:
                     if 'half_life' in signal:
                         st.metric("반감기", f"{signal['half_life']:.1f}일")
@@ -778,7 +788,7 @@ def main():
                             - 중간: 스프레드 (가격 차이)
                             - 하단: Z-스코어 ({name} 기반 신호)
                             - 주황색 선: 진입 임계값 (±2.0)
-                            - 현재 Z-Score: {signal['current_zscore']:.2f} (진입 대기 중)
+                            - 현재 Z-Score: {signal.get('current_zscore', signal.get('current_deviation', 0)):.2f}{'σ' if 'current_deviation' in signal else ''} (진입 대기 중)
                             - 상태: 진입 조건 근접, 지속적 관찰 필요
                             """)
                         else:

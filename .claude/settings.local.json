@@ -6,7 +6,8 @@
       "Bash(C:UsersinfomaxPycharmProjectspair_trading_signal.venvScriptspython.exe generate_cache.py)",
       "Bash(head:*)",
       "Bash(find:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(streamlit run:*)"
     ],
     "deny": [],
     "ask": []
