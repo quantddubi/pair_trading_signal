@@ -163,7 +163,7 @@ class SSDDistancePairTrading:
                 asset2 = assets[min_j]
                 # 중복 방지를 위해 정렬된 키 사용
                 key = tuple(sorted([asset1, asset2]))
-                if key not in pairs_dict or min_ssd < pairs_dict[key]:
+                if key not in pairs_dict or min_ssd < pairs_dict[key][2]:
                     pairs_dict[key] = (asset1, asset2, min_ssd)
         
         # 딕셔너리를 리스트로 변환
@@ -349,7 +349,9 @@ def main():
     SSD 거리 기반 페어트레이딩 실행 예제
     """
     # 데이터 로딩
-    file_path = "/Users/a/PycharmProjects/pair_trading_signal/data/MU Price(BBG).csv"
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    file_path = os.path.join(project_root, "data/MU Price(BBG).csv")
     prices = load_data(file_path)
     
     # SSD 거리 기반 페어트레이딩 객체 생성
