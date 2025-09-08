@@ -71,9 +71,12 @@ def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapp
     # 상관관계 매트릭스 계산
     correlation_matrix = returns.corr()
     
-    # 자산 이름 가져오기
-    assets = correlation_matrix.columns.tolist()
-    n_assets = len(assets)
+    # 자산 티커와 이름 가져오기
+    tickers = correlation_matrix.columns.tolist()
+    n_assets = len(tickers)
+    
+    # 티커를 자산 이름으로 매핑
+    display_names = [asset_mapping.get(ticker, ticker) for ticker in tickers]
     
     # 방법론별 색상 정의
     method_colors = {
@@ -103,8 +106,8 @@ def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapp
     fig.add_trace(
         go.Heatmap(
             z=correlation_matrix.values,
-            x=[asset[:8] + '...' if len(asset) > 10 else asset for asset in assets],  # 축 레이블 단축
-            y=[asset[:8] + '...' if len(asset) > 10 else asset for asset in assets],
+            x=[name[:12] + '...' if len(name) > 15 else name for name in display_names],  # 자산 이름으로 표시
+            y=[name[:12] + '...' if len(name) > 15 else name for name in display_names],
             colorscale='RdBu',
             zmid=0,
             zmin=-1,
@@ -133,9 +136,9 @@ def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapp
         for pair in pairs[:10]:  # 상위 10개만 표시 (너무 많으면 복잡)
             try:
                 asset1, asset2 = pair.split('-')
-                if asset1 in assets and asset2 in assets:
-                    i = assets.index(asset1)
-                    j = assets.index(asset2)
+                if asset1 in tickers and asset2 in tickers:
+                    i = tickers.index(asset1)
+                    j = tickers.index(asset2)
                     
                     # 대칭 위치에 박스 추가
                     for x, y in [(i, j), (j, i)]:
@@ -243,13 +246,13 @@ def load_asset_names():
     return asset_mapping
 
 def format_pair_name(pair, asset_mapping):
-    """페어 이름을 티커(이름) 형태로 포맷팅"""
+    """페어 이름을 이름(티커) 형태로 포맷팅"""
     asset1, asset2 = pair.split('-')
     
     name1 = asset_mapping.get(asset1, asset1)
     name2 = asset_mapping.get(asset2, asset2)
     
-    return f"{asset1}({name1}) - {asset2}({name2})"
+    return f"{name1}({asset1}) - {name2}({asset2})"
 
 def create_simple_pair_chart(prices, asset1, asset2, method_name, signal_info, asset_mapping=None):
     """간단한 페어 차트 생성 (통합 스크리너용)"""
@@ -346,7 +349,7 @@ def create_simple_pair_chart(prices, asset1, asset2, method_name, signal_info, a
     if asset_mapping:
         name1 = asset_mapping.get(asset1, asset1)
         name2 = asset_mapping.get(asset2, asset2)
-        chart_title = f"{method_name}: {asset1}({name1}) - {asset2}({name2})"
+        chart_title = f"{method_name}: {name1}({asset1}) - {name2}({asset2})"
     else:
         chart_title = f"{method_name}: {asset1} - {asset2}"
     

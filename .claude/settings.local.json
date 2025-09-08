@@ -3,7 +3,10 @@
     "allow": [
       "Bash(git add:*)",
       "Bash(python:*)",
-      "Bash(C:UsersinfomaxPycharmProjectspair_trading_signal.venvScriptspython.exe generate_cache.py)"
+      "Bash(C:UsersinfomaxPycharmProjectspair_trading_signal.venvScriptspython.exe generate_cache.py)",
+      "Bash(head:*)",
+      "Bash(find:*)",
+      "Bash(sed:*)"
     ],
     "deny": [],
     "ask": []

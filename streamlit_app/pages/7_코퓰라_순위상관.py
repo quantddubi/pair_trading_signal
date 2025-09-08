@@ -78,13 +78,13 @@ def load_asset_names():
     return asset_mapping
 
 def format_pair_name(pair, asset_mapping):
-    """페어 이름을 티커(이름) 형태로 포맷팅"""
+    """페어 이름을 이름(티커) 형태로 포맷팅"""
     asset1, asset2 = pair.split('-')
     
     name1 = asset_mapping.get(asset1, asset1)
     name2 = asset_mapping.get(asset2, asset2)
     
-    return f"{asset1}({name1}) - {asset2}({name2})"
+    return f"{name1}({asset1}) - {name2}({asset2})"
 
 def check_parameters_default(params):
     """파라미터가 기본값인지 확인"""
@@ -504,7 +504,7 @@ def create_pair_chart(prices, asset1, asset2, formation_days, signal_days, asset
     if asset_mapping:
         name1 = asset_mapping.get(asset1, asset1)
         name2 = asset_mapping.get(asset2, asset2)
-        chart_title = f"코퓰라·순위상관 기반 페어분석: {asset1}({name1}) - {asset2}({name2})"
+        chart_title = f"코퓰라·순위상관 기반 페어분석: {name1}({asset1}) - {name2}({asset2})"
     else:
         chart_title = f"코퓰라·순위상관 기반 페어분석: {asset1} - {asset2}"
     
