@@ -637,8 +637,8 @@ def main():
             all_enter_signals.extend(enter_signals)
             all_watch_signals.extend(watch_signals)
     
-    # 합의 기반 분석
-    st.subheader("합의 기반 진입 신호")
+    # 다중 필터 통과 분석
+    st.subheader("다중 필터 통과 진입 신호")
     if all_enter_signals:
         # 페어별로 그룹화
         pair_counts = {}
@@ -656,7 +656,11 @@ def main():
             st.info(f"{len(consensus_pairs)}개 페어가 여러 방법론에서 선정되었습니다.")
             
             for pair, signals in consensus_pairs:
-                with st.expander(f"{pair} (합의도: {len(signals)}개 방법론)", expanded=True):
+                # 페어 이름 포맷팅
+                formatted_pair = format_pair_name(pair, asset_mapping)
+                
+                with st.expander(f"{formatted_pair} (통과: {len(signals)}개 방법론)", expanded=True):
+                    # 각 방법론 신호 정보 표시
                     cols = st.columns(len(signals))
                     for i, signal in enumerate(signals):
                         with cols[i]:
@@ -675,6 +679,38 @@ def main():
                                 st.write(f"**반감기:** {signal['half_life']:.1f}일")
                             if 'cost_ratio' in signal:
                                 st.write(f"**비용비율:** {signal['cost_ratio']:.1f}")
+                    
+                    # 차트 생성 및 표시 (첫 번째 신호를 기준으로)
+                    asset1, asset2 = pair.split('-')
+                    primary_signal = signals[0]  # 첫 번째 신호를 기준으로
+                    primary_method = primary_signal.get('method', 'unknown')
+                    primary_method_idx = methods.index(primary_method) if primary_method in methods else -1
+                    primary_name = method_names[primary_method_idx] if primary_method_idx >= 0 else primary_method
+                    
+                    try:
+                        with st.spinner(f"{formatted_pair} 차트 생성 중..."):
+                            fig = create_simple_pair_chart(
+                                prices, asset1, asset2, primary_name, primary_signal, asset_mapping
+                            )
+                            
+                            if fig:
+                                st.plotly_chart(fig, use_container_width=True)
+                                
+                                # 차트 설명
+                                st.info(f"""
+                                **다중 필터 통과 페어 차트 설명:**
+                                - 상단: 두 자산의 정규화된 가격 추이 (최근 1년)
+                                - 중간: 스프레드 (가격 차이)
+                                - 하단: Z-스코어 ({primary_name} 기반 차트)
+                                - 주황색 선: 진입 임계값 (±2.0)
+                                - 현재 Z-Score: {primary_signal.get('current_zscore', primary_signal.get('current_deviation', 0)):.2f}{'σ' if 'current_deviation' in primary_signal else ''}
+                                - 통과 방법론: {len(signals)}개 ({', '.join([method_names[methods.index(s.get('method', 'unknown'))] if s.get('method', 'unknown') in methods else s.get('method', 'unknown') for s in signals])})
+                                """)
+                            else:
+                                st.warning("차트를 생성할 수 없습니다.")
+                    
+                    except Exception as e:
+                        st.error(f"차트 생성 중 오류: {str(e)}")
         
         if single_method_pairs:
             st.subheader("단일 방법론 진입 신호")
@@ -810,7 +846,7 @@ def main():
         st.metric("총 관찰 대상", len(all_watch_signals))
     with col3:
         consensus_count = len([pair for pair, signals in pair_counts.items() if len(signals) >= 2]) if all_enter_signals else 0
-        st.metric("합의 페어", consensus_count)
+        st.metric("다중 필터 통과 페어", consensus_count)
     with col4:
         active_methods = sum(1 for method in methods if cache_info.get(method, {}).get('exists', False))
         st.metric("활성 방법론", f"{active_methods}/6")
