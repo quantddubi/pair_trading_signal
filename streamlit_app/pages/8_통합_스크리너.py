@@ -556,7 +556,7 @@ def main():
     
     with col3:
         if selected_category == '전체':
-            st.info(f"💡 **전체 자산 표시 중**: {selected_time_period} 기간으로 분석. 89개 자산이 모두 표시되어 세부 내용이 작을 수 있습니다. 특정 카테고리를 선택하면 더 크고 명확하게 볼 수 있습니다.")
+
             
             # 카테고리별 자산 수 요약
             with st.expander("📋 카테고리별 자산 수 요약", expanded=False):
