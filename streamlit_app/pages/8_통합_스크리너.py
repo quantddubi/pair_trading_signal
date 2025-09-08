@@ -179,8 +179,8 @@ def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapp
     
     return fig
 
-def create_correlation_legend(all_pairs_by_method):
-    """방법론별 색상 범례 생성"""
+def display_correlation_legend(all_pairs_by_method):
+    """방법론별 색상 범례를 Streamlit 컬럼으로 표시"""
     method_colors = {
         'euclidean': '#FF6B6B',
         'ssd': '#4ECDC4', 
@@ -201,23 +201,36 @@ def create_correlation_legend(all_pairs_by_method):
         'copula': '코퓰라 순위상관'
     }
     
-    legend_html = "<div style='display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin: 10px 0;'>"
-    
+    # 페어가 있는 방법론만 수집
+    active_methods = []
     for method, pairs in all_pairs_by_method.items():
-        if pairs:  # 선정된 페어가 있는 방법론만 표시
+        if pairs:
+            active_methods.append((method, pairs))
+    
+    if not active_methods:
+        st.info("선정된 페어가 없습니다.")
+        return
+    
+    # 범례 제목
+    st.markdown("**매트릭스 페어 하이라이트 범례:**")
+    
+    # 컬럼으로 범례 표시
+    cols = st.columns(min(len(active_methods), 4))  # 최대 4개 컬럼
+    
+    for i, (method, pairs) in enumerate(active_methods):
+        col_idx = i % len(cols)
+        with cols[col_idx]:
             color = method_colors.get(method, '#000000')
             name = method_names.get(method, method)
             count = len(pairs)
             
-            legend_html += f"""
-            <div style='display: flex; align-items: center; gap: 5px;'>
-                <div style='width: 20px; height: 20px; border: 3px solid {color}; background: transparent;'></div>
-                <span style='font-size: 12px; font-weight: bold;'>{name} ({count}개)</span>
+            # 색상 박스와 텍스트를 HTML로 표시
+            st.markdown(f"""
+            <div style='display: flex; align-items: center; gap: 8px; margin: 5px 0;'>
+                <div style='width: 16px; height: 16px; border: 2px solid {color}; background: transparent; flex-shrink: 0;'></div>
+                <span style='font-size: 13px; font-weight: bold;'>{name} ({count}개)</span>
             </div>
-            """
-    
-    legend_html += "</div>"
-    return legend_html
+            """, unsafe_allow_html=True)
 
 # 캐시된 데이터 로딩 함수들
 @st.cache_data
@@ -441,8 +454,7 @@ def main():
             st.plotly_chart(correlation_fig, use_container_width=True)
             
             # 방법론별 색상 범례 표시
-            legend_html = create_correlation_legend(method_pairs)
-            st.markdown(legend_html, unsafe_allow_html=True)
+            display_correlation_legend(method_pairs)
             
             st.info("💡 **매트릭스 해석 가이드:**\n"
                    "- 색상이 진할수록 높은 상관관계 (빨강: 양의 상관, 파랑: 음의 상관)\n"
