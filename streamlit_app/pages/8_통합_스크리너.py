@@ -110,8 +110,7 @@ def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapp
             zmin=-1,
             zmax=1,
             colorbar=dict(
-                title="상관계수",
-                titleside="right",
+                title=dict(text="상관계수"),
                 tickmode="linear",
                 tick0=-1,
                 dtick=0.5
