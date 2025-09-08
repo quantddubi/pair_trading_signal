@@ -81,6 +81,17 @@ def get_default_parameters(method_name: str) -> Dict:
             'min_cost_ratio': 5.0,
             'transaction_cost': 0.0001
         },
+        'ssd': {
+            'formation_window': 252,
+            'signal_window': 252,
+            'enter_threshold': 2.0,
+            'exit_threshold': 0.5,
+            'stop_loss': 3.0,
+            'min_half_life': 5,
+            'max_half_life': 60,
+            'min_cost_ratio': 5.0,
+            'transaction_cost': 0.0001
+        },
         'cointegration': {
             'formation_window': 252,
             'signal_window': 60,
@@ -158,7 +169,7 @@ def parameters_match_default(method_name: str, user_params: Dict) -> bool:
 def get_cache_info() -> Dict:
     """모든 캐시 파일의 정보 반환"""
     cache_info = {}
-    methods = ['euclidean', 'cointegration', 'regime', 'ou', 'clustering', 'copula']
+    methods = ['euclidean', 'ssd', 'cointegration', 'regime', 'ou', 'clustering', 'copula']
     
     for method in methods:
         try:

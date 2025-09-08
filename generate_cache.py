@@ -347,14 +347,17 @@ def generate_copula_cache():
     trader = copula_module.CopulaRankCorrelationPairTrading(
         formation_window=252,
         signal_window=60,
+        long_window=252,
+        short_window=60,
         enter_threshold=2.0,
         exit_threshold=0.5,
         stop_loss=3.0,
         min_half_life=5,
         max_half_life=60,
         min_cost_ratio=5.0,
-        min_rank_correlation=0.7,
-        min_tail_dependence=0.2
+        min_rank_corr=0.3,
+        min_rank_corr_change=0.2,
+        tail_quantile=0.1
     )
     
     enter_list, watch_list = trader.screen_pairs(prices, n_pairs=5)
@@ -367,14 +370,17 @@ def generate_copula_cache():
         'parameters': {
             'formation_window': 252,
             'signal_window': 60,
+            'long_window': 252,
+            'short_window': 60,
             'enter_threshold': 2.0,
             'exit_threshold': 0.5,
             'stop_loss': 3.0,
             'min_half_life': 5,
             'max_half_life': 60,
             'min_cost_ratio': 5.0,
-            'min_rank_correlation': 0.7,
-            'min_tail_dependence': 0.2
+            'min_rank_corr': 0.3,
+            'min_rank_corr_change': 0.2,
+            'tail_quantile': 0.1
         }
     }
     

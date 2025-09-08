@@ -31,6 +31,7 @@ def import_module_from_file(file_path, module_name):
 # 모듈 import
 common_utils = import_module_from_file(os.path.join(project_root, "utils/common_utils.py"), "common_utils")
 ssd_module = import_module_from_file(os.path.join(project_root, "methods/2_ssd_distance_pairs.py"), "ssd_distance_pairs")
+cache_utils = import_module_from_file(os.path.join(project_root, "utils/cache_utils.py"), "cache_utils")
 
 # 필요한 함수들 import
 load_data = common_utils.load_data
@@ -85,7 +86,38 @@ def format_pair_name(pair, asset_mapping):
 # 페어 분석 함수
 @st.cache_data
 def analyze_pairs(formation_days, signal_days, enter_threshold, n_pairs):
-    """페어 분석 실행"""
+    """페어 분석 실행 (캐시 우선 사용)"""
+    
+    # 기본 파라미터와 일치하는지 확인
+    user_params = {
+        'formation_window': formation_days,
+        'signal_window': formation_days,
+        'enter_threshold': enter_threshold,
+        'exit_threshold': 0.5,
+        'stop_loss': 3.0,
+        'min_half_life': 5,
+        'max_half_life': 60,
+        'min_cost_ratio': 5.0,
+        'transaction_cost': 0.0001
+    }
+    
+    # 기본 파라미터와 일치하면 캐시 사용 (상위 n_pairs개만 반환)
+    if cache_utils.parameters_match_default('ssd', user_params):
+        cache_data = cache_utils.load_cache('ssd')
+        if cache_data:
+            # 캐시된 데이터에서 요청된 페어 수만큼 반환
+            cached_enter = cache_data['enter_signals'][:n_pairs] if len(cache_data['enter_signals']) >= n_pairs else cache_data['enter_signals']
+            cached_watch = cache_data['watch_signals'][:n_pairs] if len(cache_data['watch_signals']) >= n_pairs else cache_data['watch_signals']
+            
+            if len(cached_enter) < n_pairs:
+                st.warning(f"📋 캐시에 {len(cached_enter)}개 진입신호만 있어서 실시간 계산으로 전환합니다")
+            else:
+                st.info("📋 캐시된 결과를 사용합니다 (통합 스크리너와 동일)")
+                prices = load_price_data()
+                return cached_enter, cached_watch, prices
+    
+    # 캐시를 사용할 수 없으면 실시간 계산
+    st.info("🔄 사용자 설정으로 실시간 계산합니다")
     prices = load_price_data()
     
     trader = SSDDistancePairTrading(
