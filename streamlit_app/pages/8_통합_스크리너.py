@@ -50,20 +50,47 @@ st.set_page_config(
 st.title("📊 통합 페어트레이딩 스크리너")
 st.markdown("---")
 
-def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapping):
+def get_asset_categories():
+    """자산을 카테고리별로 분류"""
+    return {
+        '주요 주식지수': ['SPX Index', 'RTY Index', 'NDX Index', 'INDU Index', 'MXWD Index', 'MXWO Index', 'MXEA Index'],
+        '미국 섹터': ['S5FINL Index', 'S5INFT Index', 'S5HLTH Index', 'S5TELS Index', 'S5INDU Index', 'S5COND Index', 'S5CONS Index', 'S5ENRS Index', 'S5MATR Index', 'S5RLST Index', 'S5UTIL Index'],
+        '유럽/아시아 주식': ['SX5E Index', 'SXXP Index', 'UKX Index', 'NKY Index', 'TPX Index', 'DAX Index', 'CAC Index', 'AEX Index', 'FTSEMIB Index', 'IBEX Index'],
+        '신흥국 주식': ['MXEF Index', 'XIN9I Index', 'HSI Index', 'KOSPI Index', 'TWSE Index', 'SENSEX Index', 'MXLA Index'],
+        '채권': ['WN1 Comdty', 'UXY1 Comdty', 'TY1 Comdty', 'FV1 Comdty', 'TU1 Comdty', 'CN1 Comdty', 'UB1 Comdty', 'RX1 Comdty', 'OE1 Comdty', 'DU1 Comdty', 'OAT1 Comdty', 'G 1 Comdty'],
+        '채권지수': ['LEGATRUH Index', 'LGTRTRUH Index', 'H03454US Index', 'H03450US Index', 'LGCPTRUH Index', 'LG30TRUH Index', 'LG20TRUH Index', 'LUATTRUU Index'],
+        '주요 통화': ['EURUSD Curncy', 'JPYUSD Curncy', 'GBPUSD Curncy', 'CHFUSD Curncy', 'AD1 Curncy', 'CADUSD Curncy'],
+        '신흥국 통화': ['CNYUSD Curncy', 'BRLUSD Curncy', 'MXNUSD Curncy', 'KRWUSD Curncy', 'SEKUSD Curncy', 'NZDUSD Curncy'],
+        '원자재': ['CL1 Comdty', 'HG1 Comdty', 'NG1 Comdty', 'GC1 Comdty', 'SI1 Comdty', 'PL1 Comdty', 'SCO1 Comdty', 'PA1 Comdty'],
+        '농산물': ['C 1 Comdty', 'W 1 Comdty', 'S 1 Comdty'],
+        '기타': ['VIX Index']
+    }
+
+def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapping, selected_category='전체', category_assets=None):
     """
-    전체 자산 상관관계 매트릭스 생성 (방법론별 페어 강조)
+    자산 상관관계 매트릭스 생성 (방법론별 페어 강조)
     
     Args:
         prices: 가격 데이터
         all_pairs_by_method: 방법론별 선정된 페어들 {method: [pairs]}
         asset_mapping: 자산 이름 매핑
+        selected_category: 선택된 카테고리 이름
+        category_assets: 표시할 자산 리스트 (None이면 전체)
     """
     # 최근 3년 데이터로 상관관계 계산
     end_date = prices.index[-1]
     start_date = end_date - timedelta(days=3*365)  # 3년
     
     recent_data = prices.loc[start_date:end_date].fillna(method='ffill')
+    
+    # 카테고리별 자산 필터링
+    if category_assets is not None:
+        # 선택된 카테고리 자산만 사용
+        available_assets = [asset for asset in category_assets if asset in recent_data.columns]
+        if len(available_assets) < 2:
+            st.error(f"{selected_category} 카테고리에 충분한 데이터가 없습니다.")
+            return None
+        recent_data = recent_data[available_assets]
     
     # 수익률 계산
     returns = recent_data.pct_change().dropna()
@@ -163,19 +190,19 @@ def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapp
     # 레이아웃 설정
     fig.update_layout(
         title=dict(
-            text="전체 자산 상관관계 매트릭스 (최근 3년)<br><sub>하삼각형 표시, 박스 테두리: 각 방법론별 선정 페어</sub>",
+            text=f"{selected_category} 자산 상관관계 매트릭스 (최근 3년)<br><sub>하삼각형 표시, 박스 테두리: 각 방법론별 선정 페어</sub>",
             x=0.5,
-            font=dict(size=16)
+            font=dict(size=18)
         ),
-        width=800,
-        height=700,
+        width=1200,  # 크기 증가
+        height=1000,  # 크기 증가
         xaxis=dict(
             tickangle=45,
-            tickfont=dict(size=8),
+            tickfont=dict(size=10),  # 폰트 크기 증가
             side='bottom'
         ),
         yaxis=dict(
-            tickfont=dict(size=8),
+            tickfont=dict(size=10),  # 폰트 크기 증가
             autorange='reversed'  # y축 뒤집기
         ),
         shapes=shapes,
@@ -453,19 +480,69 @@ def main():
         else:
             method_pairs[method] = []
     
+    # 카테고리 선택 UI
+    st.subheader("📊 자산별 상관관계 분석")
+    categories = get_asset_categories()
+    
+    # 카테고리 선택
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        st.markdown("**자산 카테고리 선택:**")
+        category_options = ['전체'] + list(categories.keys())
+        selected_category = st.selectbox(
+            "카테고리",
+            category_options,
+            index=0,
+            help="특정 자산군만 선택하여 더 명확한 매트릭스를 확인할 수 있습니다"
+        )
+    
+    with col2:
+        if selected_category == '전체':
+            st.info("💡 **전체 자산 표시 중**: 89개 자산이 모두 표시되어 세부 내용이 작을 수 있습니다. 특정 카테고리를 선택하면 더 크고 명확하게 볼 수 있습니다.")
+            
+            # 카테고리별 자산 수 요약
+            with st.expander("📋 카테고리별 자산 수 요약", expanded=False):
+                summary_cols = st.columns(3)
+                for i, (cat_name, cat_assets) in enumerate(categories.items()):
+                    col_idx = i % 3
+                    with summary_cols[col_idx]:
+                        st.metric(cat_name, f"{len(cat_assets)}개")
+        else:
+            category_assets = categories[selected_category]
+            st.success(f"**{selected_category}** 카테고리: {len(category_assets)}개 자산 선택됨")
+            
+            # 선택된 카테고리의 자산 목록 표시
+            with st.expander(f"📋 {selected_category} 자산 목록", expanded=False):
+                asset_names = [f"{asset} ({asset_mapping.get(asset, asset)})" for asset in category_assets if asset in prices.columns]
+                if asset_names:
+                    st.write(", ".join(asset_names))
+                else:
+                    st.warning("해당 카테고리에 사용 가능한 자산이 없습니다.")
+    
     # 상관관계 매트릭스 생성 및 표시
     try:
-        with st.spinner("상관관계 매트릭스 생성 중..."):
-            correlation_fig = create_correlation_matrix_with_pairs(prices, method_pairs, asset_mapping)
-            st.plotly_chart(correlation_fig, use_container_width=True)
+        with st.spinner(f"{selected_category} 상관관계 매트릭스 생성 중..."):
+            if selected_category == '전체':
+                correlation_fig = create_correlation_matrix_with_pairs(
+                    prices, method_pairs, asset_mapping, '전체', None
+                )
+            else:
+                correlation_fig = create_correlation_matrix_with_pairs(
+                    prices, method_pairs, asset_mapping, selected_category, categories[selected_category]
+                )
             
-            # 방법론별 색상 범례 표시
-            display_correlation_legend(method_pairs)
-            
-            st.info("💡 **매트릭스 해석 가이드:**\n"
-                   "- 색상이 진할수록 높은 상관관계 (빨강: 양의 상관, 파랑: 음의 상관)\n"
-                   "- 색칠된 테두리 박스: 각 방법론에서 선정된 진입 페어\n"
-                   "- 마우스 오버: 두 자산 간 정확한 상관계수 확인 가능")
+            if correlation_fig:
+                st.plotly_chart(correlation_fig, use_container_width=True)
+                
+                # 방법론별 색상 범례 표시
+                display_correlation_legend(method_pairs)
+                
+                st.info("💡 **매트릭스 해석 가이드:**\n"
+                       "- 색상이 진할수록 높은 상관관계 (빨강: 양의 상관, 파랑: 음의 상관)\n"
+                       "- 색칠된 테두리 박스: 각 방법론에서 선정된 진입 페어\n"
+                       "- 마우스 오버: 두 자산 간 정확한 상관계수 확인 가능\n"
+                       "- 💡 **팁**: 다른 자산 카테고리를 선택하면 해당 분야의 상관관계를 더 자세히 볼 수 있습니다")
+                
     except Exception as e:
         st.error(f"상관관계 매트릭스 생성 중 오류 발생: {str(e)}")
     
