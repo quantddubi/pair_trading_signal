@@ -224,7 +224,6 @@ def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapp
     # 레이아웃 설정
     fig.update_layout(
         title=dict(
-            text=f"{selected_category} 자산 상관관계 매트릭스 ({time_period})<br><sub>하삼각형 표시, 박스 테두리: 각 방법론별 선정 페어 | 자산 수: {len(display_names)}개</sub>",
             x=0.5,
             font=dict(size=18)
         ),
