@@ -1,5 +1,5 @@
 """
-페어트레이딩 분석 도구 - OU(Ornstein-Uhlenbeck) 평균회귀 기반 방법론
+페어트레이딩 분석 도구 - OU 평균회귀 속도 기반 방법론
 """
 import streamlit as st
 import pandas as pd
@@ -16,7 +16,6 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 from utils_path import setup_path, get_data_file_path
-from statsmodels.tsa.arima.model import ARIMA
 
 # 프로젝트 루트 경로 추가
 project_root = setup_path()
@@ -30,63 +29,86 @@ def import_module_from_file(file_path, module_name):
     spec.loader.exec_module(module)
     return module
 
-# 모듈 import
-common_utils = import_module_from_file(os.path.join(project_root, "utils/common_utils.py"), "common_utils")
-cache_utils = import_module_from_file(os.path.join(project_root, "utils/cache_utils.py"), "cache_utils")
-ou_module = import_module_from_file(os.path.join(project_root, "methods/5_ou_mean_reversion_pairs.py"), "ou_mean_reversion_pairs")
+# 모듈 경로 설정 및 로드
+try:
+    methods_dir = os.path.join(project_root, 'methods')
+    sys.path.insert(0, methods_dir)
+    ou_module_path = os.path.join(methods_dir, '5_ou_mean_reversion_pairs.py')
+    ou_module = import_module_from_file(ou_module_path, 'ou_mean_reversion_pairs')
+    OUMeanReversionPairTrading = ou_module.OUMeanReversionPairTrading
+    
+    # 추가 모듈 임포트
+    from utils import cache_utils
+    
+except ImportError as e:
+    st.error(f"필요한 모듈을 찾을 수 없습니다: {e}")
+    st.stop()
 
-# 필요한 함수들 import
-load_data = common_utils.load_data
-normalize_prices = common_utils.normalize_prices
-calculate_spread = common_utils.calculate_spread
-calculate_zscore = common_utils.calculate_zscore
-OUMeanReversionPairTrading = ou_module.OUMeanReversionPairTrading
-
-# 페이지 설정
+# Streamlit 페이지 설정
 st.set_page_config(
-    page_title="OU 평균회귀 방법론",
+    page_title="OU 평균회귀 속도 기반 페어트레이딩",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 캐시된 데이터 로딩
-@st.cache_data
+# 스타일 설정
+st.markdown("""
+<style>
+    /* 메인 컨테이너 스타일 */
+    .main {
+        padding-top: 1rem;
+    }
+    
+    /* 메트릭 스타일링 */
+    [data-testid="metric-container"] {
+        background-color: #f0f2f6;
+        border: 1px solid #e0e2e6;
+        border-radius: 5px;
+        padding: 10px;
+        margin: 5px 0;
+    }
+    
+    /* 데이터프레임 스타일 */
+    .dataframe {
+        font-size: 14px;
+    }
+    
+    /* 헤더 스타일 */
+    h1, h2, h3 {
+        color: #1f2937;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# 가격 데이터 로딩
+@st.cache_data(ttl=3600)
 def load_price_data():
     """가격 데이터 로딩"""
-    file_path = get_data_file_path()
-    return load_data(file_path)
+    data_path = get_data_file_path('MU Price(BBG).csv')
+    prices = pd.read_csv(data_path, index_col='Date', parse_dates=True)
+    return prices
 
-@st.cache_data
+# 자산명 매핑 로딩
+@st.cache_data(ttl=3600)
 def load_asset_names():
-    """자산 이름 매핑 로딩 (CSV 파일의 1행: 티커, 2행: 이름)"""
-    file_path = get_data_file_path()
-    
-    with open(file_path, 'r') as f:
-        ticker_line = f.readline().strip()
-        name_line = f.readline().strip()
-    
-    tickers = ticker_line.split(',')
-    names = name_line.split(',')
-    
-    # 티커-이름 매핑 딕셔너리 생성
-    asset_mapping = {}
-    for ticker, name in zip(tickers, names):
-        asset_mapping[ticker] = name
-    
-    return asset_mapping
+    """자산 이름 매핑 로딩"""
+    return cache_utils.get_asset_mapping()
 
-def format_pair_name(pair, asset_mapping):
-    """페어 이름을 이름(티커) 형태로 포맷팅"""
-    asset1, asset2 = pair.split('-')
-    
-    name1 = asset_mapping.get(asset1, asset1)
-    name2 = asset_mapping.get(asset2, asset2)
-    
-    return f"{name1}({asset1}) - {name2}({asset2})"
+# 포맷팅 함수
+def format_pair_name(pair_str, asset_mapping):
+    """페어 이름 포맷팅 (산업 정보 포함)"""
+    assets = pair_str.split('-')
+    if len(assets) == 2:
+        asset1_info = asset_mapping.get(assets[0], {})
+        asset2_info = asset_mapping.get(assets[1], {})
+        
+        asset1_display = f"{asset1_info.get('name', assets[0])} ({asset1_info.get('industry', 'N/A')})"
+        asset2_display = f"{asset2_info.get('name', assets[1])} ({asset2_info.get('industry', 'N/A')})"
+        
+        return f"{asset1_display} - {asset2_display}"
+    return pair_str
 
-# 페어 분석 함수
-@st.cache_data
 def analyze_pairs(formation_window, rolling_window, enter_threshold, exit_threshold, stop_loss, min_half_life, max_half_life, min_cost_ratio, min_mean_reversion_speed, max_kappa_cv, data_coverage_threshold, winsorize_percentile, n_pairs):
     """페어 분석 실행"""
     prices = load_price_data()
@@ -109,7 +131,7 @@ def analyze_pairs(formation_window, rolling_window, enter_threshold, exit_thresh
     selected_pairs = trader.select_pairs(prices, n_pairs=n_pairs)
     return selected_pairs, prices
 
-def create_ou_mean_reversion_chart(prices, asset1, asset2, formation_window, signal_window, asset_mapping=None):
+def create_pair_chart(prices, asset1, asset2, formation_window, signal_window, asset_mapping=None):
     """OU 평균회귀 분석 차트 생성"""
     # 전체 기간 데이터
     end_date = prices.index[-1]
@@ -122,6 +144,7 @@ def create_ou_mean_reversion_chart(prices, asset1, asset2, formation_window, sig
         return None
     
     # 가격 정규화 (리베이스)
+    from utils.data_processing import normalize_prices
     normalized_data = normalize_prices(chart_data, method='rebase')
     
     # OU 과정 분석
@@ -188,151 +211,123 @@ def create_ou_mean_reversion_chart(prices, asset1, asset2, formation_window, sig
                     sub_half_life = np.log(2) / sub_kappa if sub_kappa > 0 else 100
                     
                     rolling_kappa.append(sub_kappa)
-                    rolling_half_life.append(min(sub_half_life, 100))  # Cap at 100 days
+                    rolling_half_life.append(sub_half_life)
                 except:
-                    rolling_kappa.append(0.01)
-                    rolling_half_life.append(50)
+                    rolling_kappa.append(kappa)
+                    rolling_half_life.append(half_life)
             else:
-                rolling_kappa.append(0.01)
-                rolling_half_life.append(50)
+                rolling_kappa.append(kappa)
+                rolling_half_life.append(half_life)
         
-        # Z-스코어 계산
-        zscore_window = max(20, min(60, len(spread)//4))
-        zscore = calculate_zscore(spread, window=zscore_window)
+        # 롤링 데이터 날짜 정렬
+        rolling_dates = spread.index[window:]
+        
+        # Z-score 계산 (신호 생성용)
+        spread_mean = spread.rolling(window=signal_window).mean()
+        spread_std = spread.rolling(window=signal_window).std()
+        zscore = (spread - spread_mean) / spread_std
         
     except Exception as e:
-        st.error(f"OU 평균회귀 분석 중 오류 발생: {str(e)}")
+        st.error(f"OU 분석 오류: {str(e)}")
         return None
     
-    # 서브플롯 생성
+    # Plotly 차트 생성 (5개 서브플롯)
     fig = make_subplots(
         rows=5, cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.03,
-        row_heights=[0.25, 0.2, 0.2, 0.2, 0.15],
+        vertical_spacing=0.05,
         subplot_titles=[
-            f'{asset1} vs {asset2} - 정규화된 가격',
-            f'스프레드 (헤지비율: {hedge_ratio:.4f})',
-            f'평균회귀 속도 κ ({window}일 롤링)',
-            f'반감기 ({window}일 롤링)',
-            'Z-Score (진입 신호)'
-        ]
+            "정규화된 가격",
+            "OU 스프레드 & 장기 평균 (θ)",
+            "평균회귀속도 κ (30일 롤링)",
+            "반감기 (30일 롤링)",
+            "Z-Score (진입 신호)"
+        ],
+        row_heights=[0.25, 0.2, 0.2, 0.2, 0.15]
     )
     
-    # 1. 정규화된 가격 차트
+    # 형성 기간 배경색 설정
+    formation_start = end_date - timedelta(days=formation_window)
+    
+    # 1. 정규화된 가격
     fig.add_trace(
-        go.Scatter(
-            x=normalized_data.index,
-            y=normalized_data[asset1],
-            name=asset1,
-            line=dict(color='blue', width=2),
-            hovertemplate=f'<b>{asset1}</b><br>Date: %{{x}}<br>Price: %{{y:.4f}}<extra></extra>'
-        ),
+        go.Scatter(x=normalized_data.index, y=normalized_data[asset1], 
+                   name=asset_mapping.get(asset1, {}).get('name', asset1) if asset_mapping else asset1,
+                   line=dict(color='blue', width=1.5)),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=normalized_data.index, y=normalized_data[asset2], 
+                   name=asset_mapping.get(asset2, {}).get('name', asset2) if asset_mapping else asset2,
+                   line=dict(color='red', width=1.5)),
         row=1, col=1
     )
     
+    # 2. OU 스프레드와 장기 평균
     fig.add_trace(
-        go.Scatter(
-            x=normalized_data.index,
-            y=normalized_data[asset2],
-            name=asset2,
-            line=dict(color='red', width=2),
-            hovertemplate=f'<b>{asset2}</b><br>Date: %{{x}}<br>Price: %{{y:.4f}}<extra></extra>'
-        ),
-        row=1, col=1
-    )
-    
-    # 2. 스프레드
-    fig.add_trace(
-        go.Scatter(
-            x=spread.index,
-            y=spread.values,
-            name='OU Spread',
-            line=dict(color='green', width=2),
-            hovertemplate='<b>OU Spread</b><br>Date: %{x}<br>Value: %{y:.4f}<extra></extra>'
-        ),
+        go.Scatter(x=spread.index, y=spread, 
+                   name="OU 스프레드", 
+                   line=dict(color='purple', width=1.5)),
         row=2, col=1
     )
+    fig.add_hline(y=theta, line_dash="dash", line_color="orange", 
+                  annotation_text=f"θ={theta:.3f}", row=2, col=1)
     
-    # 장기 평균선
-    fig.add_hline(y=theta, line_dash="dash", line_color="orange", opacity=0.7, row=2, col=1)
-    
-    # 3. 평균회귀 속도 κ
-    if len(rolling_kappa) > 0:
-        kappa_dates = spread.index[window:]
-        fig.add_trace(
-            go.Scatter(
-                x=kappa_dates,
-                y=rolling_kappa,
-                name='κ (평균회귀속도)',
-                line=dict(color='purple', width=2),
-                hovertemplate='<b>평균회귀속도</b><br>Date: %{x}<br>κ: %{y:.4f}<extra></extra>'
-            ),
-            row=3, col=1
-        )
-        
-        # 임계값 라인
-        fig.add_hline(y=0.01, line_dash="dash", line_color="gray", opacity=0.5, row=3, col=1)
+    # 3. 평균회귀속도 κ
+    fig.add_trace(
+        go.Scatter(x=rolling_dates, y=rolling_kappa,
+                   name="κ (평균회귀속도)", 
+                   line=dict(color='green', width=1.5)),
+        row=3, col=1
+    )
+    fig.add_hline(y=0.01, line_dash="dash", line_color="red", 
+                  annotation_text="최소 κ=0.01", row=3, col=1)
     
     # 4. 반감기
-    if len(rolling_half_life) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=kappa_dates,
-                y=rolling_half_life,
-                name='Half-Life',
-                line=dict(color='brown', width=2),
-                hovertemplate='<b>반감기</b><br>Date: %{x}<br>Half-Life: %{y:.1f}일<extra></extra>'
-            ),
-            row=4, col=1
-        )
-        
-        # 반감기 기준선들
-        fig.add_hline(y=5, line_dash="dash", line_color="green", opacity=0.7, row=4, col=1)
-        fig.add_hline(y=60, line_dash="dash", line_color="red", opacity=0.7, row=4, col=1)
+    fig.add_trace(
+        go.Scatter(x=rolling_dates, y=rolling_half_life,
+                   name="반감기 (일)", 
+                   line=dict(color='brown', width=1.5)),
+        row=4, col=1
+    )
+    fig.add_hline(y=5, line_dash="dash", line_color="green", 
+                  annotation_text="최소=5일", row=4, col=1)
+    fig.add_hline(y=60, line_dash="dash", line_color="red", 
+                  annotation_text="최대=60일", row=4, col=1)
     
-    # 5. Z-스코어
-    if len(zscore.dropna()) > 0:
-        zscore_dates = zscore.dropna().index
-        zscore_values = zscore.dropna().values
-        
-        fig.add_trace(
-            go.Scatter(
-                x=zscore_dates,
-                y=zscore_values,
-                name='Z-Score',
-                line=dict(color='darkred', width=2),
-                hovertemplate='<b>Z-Score</b><br>Date: %{x}<br>Value: %{y:.2f}<extra></extra>'
-            ),
-            row=5, col=1
-        )
-        
-        # Z-스코어 임계값 라인들
-        fig.add_hline(y=2.0, line_dash="dash", line_color="orange", opacity=0.7, row=5, col=1)
-        fig.add_hline(y=-2.0, line_dash="dash", line_color="orange", opacity=0.7, row=5, col=1)
-        fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5, row=5, col=1)
+    # 5. Z-Score
+    fig.add_trace(
+        go.Scatter(x=zscore.index, y=zscore, 
+                   name="Z-Score", 
+                   line=dict(color='darkblue', width=1.5)),
+        row=5, col=1
+    )
+    fig.add_hline(y=2, line_dash="dash", line_color="orange", 
+                  annotation_text="진입", row=5, col=1)
+    fig.add_hline(y=-2, line_dash="dash", line_color="orange", 
+                  annotation_text="진입", row=5, col=1)
+    fig.add_hline(y=0, line_dash="solid", line_color="gray", row=5, col=1)
     
-    # 최근 6개월 배경색 강조
-    six_months_ago = end_date - timedelta(days=180)
-    for row in range(1, 6):
+    # 형성 기간 하이라이트 (모든 서브플롯에 적용)
+    for i in range(1, 6):
         fig.add_vrect(
-            x0=six_months_ago, x1=end_date,
+            x0=formation_start, x1=end_date,
             fillcolor="yellow", opacity=0.1,
             layer="below", line_width=0,
-            row=row, col=1
+            row=i, col=1
         )
     
-    # 차트 제목에 자산 이름 포함
+    # 차트 제목
     if asset_mapping:
-        name1 = asset_mapping.get(asset1, asset1)
-        name2 = asset_mapping.get(asset2, asset2)
-        chart_title = f"OU 평균회귀 분석: {name1}({asset1}) - {name2}({asset2})"
+        asset1_name = asset_mapping.get(asset1, {}).get('name', asset1)
+        asset2_name = asset_mapping.get(asset2, {}).get('name', asset2)
+        chart_title = f"OU 평균회귀 분석: {asset1_name} vs {asset2_name}"
     else:
-        chart_title = f"OU 평균회귀 분석: {asset1} - {asset2}"
+        chart_title = f"OU 평균회귀 분석: {asset1} vs {asset2}"
     
     # 레이아웃 설정
     fig.update_layout(
-        height=1200,
+        height=1000,
         title=chart_title,
         showlegend=True,
         hovermode='x unified',
@@ -344,27 +339,22 @@ def create_ou_mean_reversion_chart(prices, asset1, asset2, formation_window, sig
     fig.update_yaxes(title_text="Normalized Price", row=1, col=1)
     fig.update_yaxes(title_text="Spread", row=2, col=1)
     fig.update_yaxes(title_text="κ", row=3, col=1)
-    fig.update_yaxes(title_text="Half-Life (days)", row=4, col=1)
+    fig.update_yaxes(title_text="Days", row=4, col=1)
     fig.update_yaxes(title_text="Z-Score", row=5, col=1)
     
-    # 현재 값들을 주석으로 추가
-    if len(zscore.dropna()) > 0 and len(rolling_kappa) > 0:
-        current_zscore = zscore_values[-1] if len(zscore_values) > 0 else 0
-        current_kappa = rolling_kappa[-1] if len(rolling_kappa) > 0 else 0
-        current_half_life = rolling_half_life[-1] if len(rolling_half_life) > 0 else 0
-        
-        fig.add_annotation(
-            x=zscore_dates[-1] if len(zscore_dates) > 0 else end_date,
-            y=current_zscore,
-            text=f"현재 Z-Score: {current_zscore:.2f}<br>κ: {current_kappa:.4f}<br>반감기: {current_half_life:.1f}일",
-            showarrow=True,
-            arrowhead=2,
-            arrowsize=1,
-            arrowwidth=2,
-            arrowcolor="darkred",
-            font=dict(size=12, color="darkred"),
-            row=5, col=1
-        )
+    # 통계 정보를 주석으로 추가
+    fig.add_annotation(
+        x=rolling_dates[-1] if len(rolling_dates) > 0 else end_date,
+        y=rolling_kappa[-1] if len(rolling_kappa) > 0 else kappa,
+        text=f"현재 κ: {rolling_kappa[-1] if len(rolling_kappa) > 0 else kappa:.4f}<br>반감기: {rolling_half_life[-1] if len(rolling_half_life) > 0 else half_life:.1f}일",
+        showarrow=True,
+        arrowhead=2,
+        arrowsize=1,
+        arrowwidth=2,
+        arrowcolor="green",
+        font=dict(size=12, color="green"),
+        row=3, col=1
+    )
     
     return fig
 
@@ -378,41 +368,7 @@ def main():
     st.title("OU 평균회귀 속도 기반 페어트레이딩")
     st.markdown("---")
     
-    # OU 평균회귀 방법론 설명
-    st.info("""
-    ### OU(Ornstein-Uhlenbeck) 평균회귀 기반 페어 선정 방법론
-    
-    **핵심 원리**: 스프레드가 평균으로 돌아가는 속도(평균회귀속도 κ)를 수학적으로 모델링하여, 가장 빠르고 안정적으로 수렴하는 페어를 선정하는 전략
-    
-    **OU 과정 수학적 모델**: dX(t) = κ(θ - X(t))dt + σdW(t)
-    - **κ (kappa)**: 평균회귀속도 → 클수록 빠른 수렴
-    - **θ (theta)**: 장기평균 → 스프레드가 수렴할 목표점
-    - **σ**: 변동성 → 노이즈 수준
-    
-    **상세 작동 과정**:
-    1. **스프레드 OU 과정 적합**: 각 페어의 스프레드를 OU 모델로 추정
-       - AR(1) 근사: ΔSpread(t) = α + β×Spread(t-1) + ε(t)
-       - OU 변환: κ = -β/Δt, θ = -α/β
-    2. **평균회귀속도 품질평가**: 
-       - **κ > 0.01**: 유의미한 평균회귀 존재
-       - **κ 안정성**: 시간에 따른 κ 변동성 최소화
-       - **반감기**: Half-Life = ln(2)/κ → 5~60일 범위 선호
-    3. **동적 모니터링**: 30일 롤링 윈도우로 κ 실시간 추적
-       - κ 증가 → 더 강한 평균회귀 → 좋은 신호
-       - κ 감소 → 약화된 평균회귀 → 위험 신호
-    4. **품질 필터링**:
-       - **평균 κ**: 0.01 이상 (충분한 평균회귀 강도)
-       - **κ 일관성**: 시간에 따른 안정적 유지
-       - **Half-Life**: 5~60일 (너무 빠르거나 느리지 않은 수렴)
-    5. **진입 타이밍**: Z-Score + κ 강도 조합으로 최적 진입점 포착
-    
-    **핵심**: **수학적으로 검증된 평균회귀 강도**를 기반으로 **가장 신뢰할 수 있는 수렴 페어** 선정
-    
-    **장점**: 수학적 엄밀성, 평균회귀 강도 정량화, 동적 품질 모니터링
-    **단점**: 모델 복잡성, 구조변화 감지 지연, 계산 집약적
-    """)
-    
-    # 사이드바 설정
+    # 사이드바 설정 (TAB 1에서만 활성화)
     st.sidebar.header("분석 설정")
     st.sidebar.markdown("### 기간 설정")
     
@@ -425,12 +381,12 @@ def main():
         help="OU 과정 추정을 위한 과거 데이터 기간"
     )
     
-    signal_window = st.sidebar.slider(
-        "Signal Window (일)", 
-        min_value=20, 
+    rolling_window = st.sidebar.slider(
+        "Rolling Window (일)", 
+        min_value=30, 
         max_value=120, 
         value=60,
-        help="Z-score 계산을 위한 롤링 윈도우"
+        help="OU 파라미터 추정용 롤링 윈도우"
     )
     
     st.sidebar.markdown("### 신호 설정")
@@ -500,14 +456,6 @@ def main():
     )
     
     st.sidebar.markdown("### 고급 설정")
-    
-    rolling_window = st.sidebar.slider(
-        "Rolling Window (일)", 
-        min_value=30, 
-        max_value=120, 
-        value=60,
-        help="OU 파라미터 추정용 롤링 윈도우"
-    )
     
     max_kappa_cv = st.sidebar.slider(
         "최대 κ 변동계수", 
@@ -580,8 +528,6 @@ def main():
                 if cache_data:
                     enter_list = cache_data.get('enter_signals', [])
                     watch_list = cache_data.get('watch_signals', [])
-                    # OU에서는 enter_list와 watch_list를 합쳐서 selected_pairs로 사용
-                    selected_pairs = enter_list + watch_list
                     prices = load_price_data()
                 else:
                     st.error("캐시 데이터를 찾을 수 없음")
@@ -595,6 +541,9 @@ def main():
                     min_mean_reversion_speed, max_kappa_cv, data_coverage_threshold, 
                     winsorize_percentile, n_pairs
                 )
+                # 실시간 분석 결과를 enter_list와 watch_list로 분리
+                enter_list = [p for p in selected_pairs if abs(p.get('current_zscore', 0)) >= enter_threshold]
+                watch_list = [p for p in selected_pairs if abs(p.get('current_zscore', 0)) < enter_threshold]
             
             asset_mapping = load_asset_names()  # 자산 이름 매핑 로딩
             
@@ -602,182 +551,450 @@ def main():
             st.error(f"분석 중 오류 발생: {str(e)}")
             return
     
-    # 분석 결과 요약
-    st.header("분석 결과 요약")
+    # 4개 탭 구성 (아이콘 + 명칭 통일)
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📈 분석 결과 요약",
+        "📊 상세 작동 과정", 
+        "📝 상세 설명",
+        "🔍 수식 및 계산"
+    ])
     
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("선별된 페어", f"{len(selected_pairs)}개", help="모든 품질 필터를 통과한 페어")
-    
-    with col2:
-        entry_signals = sum(1 for pair in selected_pairs if pair.get('signal_type') == 'ENTRY')
-        st.metric("진입 신호", f"{entry_signals}개", help="현재 진입 가능한 페어")
-    
-    with col3:
-        avg_kappa = np.mean([pair.get('kappa_avg', 0.01) for pair in selected_pairs]) if selected_pairs else 0
-        st.metric("평균 κ", f"{avg_kappa:.4f}", help="평균회귀속도")
+    # =====================================================
+    # TAB 1: 분석 결과 요약
+    # =====================================================
+    with tab1:
+        # 분석 결과 요약 메트릭
+        col1, col2, col3, col4 = st.columns(4)
         
-    with col4:
-        avg_half_life = np.mean([pair.get('half_life_avg', 50) for pair in selected_pairs]) if selected_pairs else 0
-        st.metric("평균 반감기", f"{avg_half_life:.1f}일", help="선별된 페어들의 평균 반감기")
-    
-    st.markdown("---")
-    
-    # 선별된 페어 테이블
-    if selected_pairs:
-        st.header("선별된 OU 평균회귀 페어")
+        with col1:
+            st.metric("진입 신호", f"{len(enter_list)}개", help="Z-스코어 임계값 이상의 페어")
         
-        # 테이블 데이터 준비
-        table_data = []
-        for i, pair_info in enumerate(selected_pairs, 1):
-            # OU 메서드는 asset1, asset2 키를 사용하고, 캐시는 pair 키를 사용
-            if 'pair' in pair_info:
-                formatted_pair = format_pair_name(pair_info['pair'], asset_mapping)
-            else:
-                # asset1, asset2로부터 pair 생성
-                pair_str = f"{pair_info['asset1']}-{pair_info['asset2']}"
-                formatted_pair = format_pair_name(pair_str, asset_mapping)
+        with col2:
+            st.metric("관찰 대상", f"{len(watch_list)}개", help="진입 직전 단계의 페어")
+        
+        with col3:
+            avg_kappa = np.mean([pair.get('kappa_avg', 0.01) for pair in enter_list + watch_list]) if (enter_list + watch_list) else 0
+            st.metric("평균 κ", f"{avg_kappa:.4f}", help="평균회귀속도")
             
-            table_data.append({
-                "순위": i,
-                "페어": formatted_pair,
-                "신호": pair_info.get('signal_type', 'NEUTRAL'),
-                "Z-Score": f"{pair_info.get('current_zscore', 0):.2f}",
-                "κ (속도)": f"{pair_info.get('kappa_avg', 0.01):.4f}",
-                "반감기": f"{pair_info.get('half_life_avg', 50):.1f}일",
-                "품질점수": f"{pair_info.get('quality_score', 0.0):.1f}",
-                "헤지비율": f"{pair_info.get('hedge_ratio', 1.0):.4f}"
-            })
-        
-        df_pairs = pd.DataFrame(table_data)
-        
-        # 스타일링된 테이블 표시
-        st.dataframe(
-            df_pairs,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "순위": st.column_config.NumberColumn("순위", width="small"),
-                "페어": st.column_config.TextColumn("페어", width="medium"),
-                "신호": st.column_config.TextColumn("신호 타입", width="small"),
-                "Z-Score": st.column_config.TextColumn("Z-Score", width="small"),
-                "κ (속도)": st.column_config.TextColumn("κ (속도)", width="small"),
-                "반감기": st.column_config.TextColumn("반감기", width="small"),
-                "품질점수": st.column_config.TextColumn("품질점수", width="small"),
-                "헤지비율": st.column_config.TextColumn("헤지비율", width="small")
-            }
-        )
+        with col4:
+            avg_half_life = np.mean([pair.get('half_life_avg', 50) for pair in enter_list + watch_list]) if (enter_list + watch_list) else 0
+            st.metric("평균 반감기", f"{avg_half_life:.1f}일", help="선별된 페어들의 평균 반감기")
         
         st.markdown("---")
         
-        # 페어 선택 및 차트 표시
-        st.header("페어 상세 분석")
-        
-        # 최고 추천 페어 표시
-        top_pair = selected_pairs[0]
-        if 'pair' in top_pair:
-            top_pair_str = top_pair['pair']
-        else:
-            top_pair_str = f"{top_pair['asset1']}-{top_pair['asset2']}"
-        top_formatted_pair = format_pair_name(top_pair_str, asset_mapping)
-        st.success(f"최고 품질 페어: {top_formatted_pair}")
-        
-        # 페어 선택 옵션 (표시는 포맷팅된 이름, 값은 원래 페어)
-        # pair 키가 있으면 사용, 없으면 asset1-asset2로 생성
-        pair_options = []
-        pair_display_names = []
-        for pair_info in selected_pairs:
-            if 'pair' in pair_info:
-                pair_str = pair_info['pair']
-            else:
-                pair_str = f"{pair_info['asset1']}-{pair_info['asset2']}"
-            pair_options.append(pair_str)
-            pair_display_names.append(format_pair_name(pair_str, asset_mapping))
-        
-        # selectbox에서 표시할 옵션들 생성
-        pair_mapping = {display: original for display, original in zip(pair_display_names, pair_options)}
-        
-        selected_display_pair = st.selectbox(
-            "분석할 페어 선택:",
-            options=pair_display_names,
-            index=0,
-            help="차트로 분석할 페어를 선택하세요"
-        )
-        
-        # 선택된 페어의 상세 정보 표시
-        selected_pair = pair_mapping[selected_display_pair]
-        selected_pair_info = None
-        
-        # 선택된 페어의 정보 찾기
-        for signal in enter_list:
-            if signal['pair'] == selected_pair:
-                selected_pair_info = signal
-                break
-        
-        if selected_pair_info:
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("진입 방향", selected_pair_info['direction'])
-            with col2:
-                st.metric("현재 Z-Score", f"{selected_pair_info['current_zscore']:.2f}")
-            with col3:
-                st.metric("κ (평균회귀속도)", f"{selected_pair_info.get('kappa_avg', 0.01):.4f}")
-            with col4:
-                st.metric("반감기", f"{selected_pair_info.get('half_life_avg', 50):.1f}일")
-        
-        if selected_pair:
-            asset1, asset2 = selected_pair.split('-')
+        # 진입 신호 테이블
+        if enter_list:
+            st.subheader("추천 진입 페어")
             
-            # 차트 생성 및 표시
-            with st.spinner(f"{selected_display_pair} OU 평균회귀 차트 생성 중..."):
-                fig = create_ou_mean_reversion_chart(prices, asset1, asset2, formation_window, signal_window, asset_mapping)
+            # 테이블 데이터 준비
+            table_data = []
+            for i, pair_info in enumerate(enter_list, 1):
+                # OU 메서드는 asset1, asset2 키를 사용하고, 캐시는 pair 키를 사용
+                if 'pair' in pair_info:
+                    formatted_pair = format_pair_name(pair_info['pair'], asset_mapping)
+                else:
+                    # asset1, asset2로부터 pair 생성
+                    pair_str = f"{pair_info['asset1']}-{pair_info['asset2']}"
+                    formatted_pair = format_pair_name(pair_str, asset_mapping)
                 
-                if fig:
-                    st.plotly_chart(fig, use_container_width=True)
+                table_data.append({
+                    "순위": i,
+                    "페어": formatted_pair,
+                    "방향": pair_info.get('direction', 'LONG/SHORT'),
+                    "Z-Score": f"{pair_info.get('current_zscore', 0):.2f}",
+                    "κ (속도)": f"{pair_info.get('kappa_avg', 0.01):.4f}",
+                    "반감기": f"{pair_info.get('half_life_avg', 50):.1f}일",
+                    "품질점수": f"{pair_info.get('quality_score', 0.0):.1f}",
+                    "헤지비율": f"{pair_info.get('hedge_ratio', 1.0):.4f}"
+                })
+            
+            df_enter = pd.DataFrame(table_data)
+            
+            # 스타일링된 테이블 표시
+            st.dataframe(
+                df_enter,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "순위": st.column_config.NumberColumn("순위", width="small"),
+                    "페어": st.column_config.TextColumn("페어", width="medium"),
+                    "방향": st.column_config.TextColumn("진입 방향", width="small"),
+                    "Z-Score": st.column_config.TextColumn("Z-Score", width="small"),
+                    "κ (속도)": st.column_config.TextColumn("κ (속도)", width="small"),
+                    "반감기": st.column_config.TextColumn("반감기", width="small"),
+                    "품질점수": st.column_config.TextColumn("품질점수", width="small"),
+                    "헤지비율": st.column_config.TextColumn("헤지비율", width="small")
+                }
+            )
+            
+            st.markdown("---")
+            
+            # 통합 페어 상세 분석 섹션
+            st.subheader("페어 상세 분석")
+            
+            # 최고 추천 페어 표시
+            top_pair = enter_list[0]
+            if 'pair' in top_pair:
+                top_pair_str = top_pair['pair']
+            else:
+                top_pair_str = f"{top_pair['asset1']}-{top_pair['asset2']}"
+            top_formatted_pair = format_pair_name(top_pair_str, asset_mapping)
+            st.success(f"최고 품질 페어: {top_formatted_pair}")
+            
+            # 모든 진입&관찰 페어를 통합하여 선택 가능하도록 구성
+            all_pairs = enter_list + watch_list
+            all_pair_options = []
+            all_pair_display_names = []
+            
+            for pair_info in all_pairs:
+                if 'pair' in pair_info:
+                    pair_str = pair_info['pair']
+                else:
+                    pair_str = f"{pair_info.get('asset1', '')}-{pair_info.get('asset2', '')}"
+                all_pair_options.append(pair_str)
+                all_pair_display_names.append(format_pair_name(pair_str, asset_mapping))
+            
+            # selectbox에서 표시할 옵션들 생성
+            if all_pair_display_names:
+                pair_mapping = {display: original for display, original in zip(all_pair_display_names, all_pair_options)}
+                
+                selected_display_pair = st.selectbox(
+                    "분석할 페어 선택:",
+                    options=all_pair_display_names,
+                    index=0,
+                    help="차트로 분석할 페어를 선택하세요 (진입 + 관찰 페어 모두 포함)"
+                )
+                
+                # 선택된 페어의 상세 정보 표시
+                selected_pair = pair_mapping[selected_display_pair]
+                selected_pair_info = None
+                
+                # 선택된 페어의 정보 찾기 (진입 리스트와 관찰 리스트 모두에서)
+                for signal in all_pairs:
+                    if 'pair' in signal:
+                        pair_str = signal['pair']
+                    else:
+                        pair_str = f"{signal.get('asset1', '')}-{signal.get('asset2', '')}"
                     
-                    # 차트 설명
-                    st.info("""
-                    **OU 평균회귀 차트 설명:**
-                    - **상단**: 두 자산의 정규화된 가격 추이
-                    - **2번째**: OU 스프레드와 장기 평균 (θ) - 주황색 선은 수렴 목표점
-                    - **3번째**: 평균회귀속도 κ (30일 롤링) - 높을수록 강한 평균회귀
-                    - **4번째**: 반감기 (30일 롤링) - 낮을수록 빠른 수렴
-                    - **하단**: Z-스코어 (평균회귀 진입 신호)
-                    - **노란색 배경**: 최근 6개월 기간
-                    - **초록/빨간색 선**: 반감기 기준 (5일/60일)
-                    - **주황색 선**: 진입 임계값 (±2.0)
-                    """)
-    
-    else:
-        st.warning("현재 진입 조건을 만족하는 OU 평균회귀 페어가 없음")
-        st.info("평균회귀속도 κ 최소값을 낮추거나 Z-Score 임계값을 낮춰야함")
-    
-    # 관찰 대상 테이블
-    if watch_list:
-        st.header("관찰 대상 페어")
+                    if pair_str == selected_pair:
+                        selected_pair_info = signal
+                        break
+                
+                if selected_pair_info:
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        direction = selected_pair_info.get('direction', '관찰중')
+                        st.metric("진입 방향", direction)
+                    with col2:
+                        st.metric("현재 Z-Score", f"{selected_pair_info.get('current_zscore', 0):.2f}")
+                    with col3:
+                        st.metric("κ (평균회귀속도)", f"{selected_pair_info.get('kappa_avg', 0.01):.4f}")
+                    with col4:
+                        st.metric("반감기", f"{selected_pair_info.get('half_life_avg', 50):.1f}일")
+                
+                if selected_pair and '-' in selected_pair:
+                    asset1, asset2 = selected_pair.split('-')
+                    
+                    # 차트 생성 및 표시
+                    with st.spinner(f"{selected_display_pair} OU 평균회귀 차트 생성 중..."):
+                        fig = create_pair_chart(prices, asset1, asset2, formation_window, rolling_window, asset_mapping)
+                        
+                        if fig:
+                            st.plotly_chart(fig, use_container_width=True)
+                            
+                            # 차트 설명
+                            st.info("""
+                            **OU 평균회귀 차트 설명:**
+                            - **상단**: 두 자산의 정규화된 가격 추이
+                            - **2번째**: OU 스프레드와 장기 평균 (θ) - 주황색 선은 수렴 목표점
+                            - **3번째**: 평균회귀속도 κ (30일 롤링) - 높을수록 강한 평균회귀
+                            - **4번째**: 반감기 (30일 롤링) - 낮을수록 빠른 수렴
+                            - **하단**: Z-스코어 (평균회귀 진입 신호)
+                            - **노란색 배경**: 최근 분석 기간
+                            - **초록/빨간색 선**: 반감기 기준 (5일/60일)
+                            - **주황색 선**: 진입 임계값 (±2.0)
+                            """)
         
-        table_data = []
-        for i, signal in enumerate(watch_list, 1):
-            formatted_pair = format_pair_name(signal['pair'], asset_mapping)
-            table_data.append({
-                "순위": i,
-                "페어": formatted_pair,
-                "Z-Score": f"{signal['current_zscore']:.2f}",
-                "κ (속도)": f"{signal.get('kappa_avg', 0.01):.4f}",
-                "반감기": f"{signal.get('half_life_avg', 50):.1f}일",
-                "품질점수": f"{signal.get('quality_score', 0.0):.1f}",
-                "헤지비율": f"{signal.get('hedge_ratio', 1.0):.4f}"
-            })
+        else:
+            st.warning("현재 진입 조건을 만족하는 OU 평균회귀 페어가 없습니다.")
+            st.info("평균회귀속도 κ 최소값을 낮추거나 Z-Score 임계값을 낮춰보세요.")
         
-        df_watch = pd.DataFrame(table_data)
-        st.dataframe(df_watch, use_container_width=True, hide_index=True)
+        # 관찰 대상 테이블
+        if watch_list:
+            st.subheader("관찰 대상 페어")
+            
+            table_data = []
+            for i, pair_info in enumerate(watch_list, 1):
+                if 'pair' in pair_info:
+                    formatted_pair = format_pair_name(pair_info['pair'], asset_mapping)
+                else:
+                    pair_str = f"{pair_info.get('asset1', '')}-{pair_info.get('asset2', '')}"
+                    formatted_pair = format_pair_name(pair_str, asset_mapping)
+                
+                table_data.append({
+                    "순위": i,
+                    "페어": formatted_pair,
+                    "Z-Score": f"{pair_info.get('current_zscore', 0):.2f}",
+                    "κ (속도)": f"{pair_info.get('kappa_avg', 0.01):.4f}",
+                    "반감기": f"{pair_info.get('half_life_avg', 50):.1f}일",
+                    "품질점수": f"{pair_info.get('quality_score', 0.0):.1f}"
+                })
+            
+            df_watch = pd.DataFrame(table_data)
+            st.dataframe(df_watch, use_container_width=True, hide_index=True)
+        
+        # 캐시 정보 표시 (기본 파라미터 사용시에만)
+        if is_default and 'cache_data' in locals():
+            st.markdown("---")
+            st.caption(f"📅 캐시 생성일: {cache_data.get('generated_at', 'Unknown')}")
+            st.caption(f"📊 데이터 기준일: {cache_data.get('data_date', 'Unknown')}")
     
-    # 캐시 정보 표시 (기본 파라미터 사용시에만)
-    if is_default and 'cache_data' in locals():
-        st.markdown("---")
-        st.caption(f"📅 캐시 생성일: {cache_data.get('generated_at', 'Unknown')}")
-        st.caption(f"📊 데이터 기준일: {cache_data.get('data_date', 'Unknown')}")
+    # =====================================================
+    # TAB 2: 상세 작동 과정
+    # =====================================================
+    with tab2:
+        st.markdown("### OU 평균회귀 방법론 상세 작동 과정")
+        
+        # STEP별 작동 과정 (OU 특화)
+        st.markdown("#### STEP 1: 스프레드 OU 과정 적합")
+        st.info("""
+        - **AR(1) 근사**: ΔSpread(t) = α + β×Spread(t-1) + ε(t)
+        - **OU 변환**: κ = -β/Δt, θ = -α/β
+        - 각 페어의 스프레드를 Ornstein-Uhlenbeck 모델로 추정
+        """)
+        
+        st.markdown("#### STEP 2: 평균회귀속도 품질평가")
+        st.warning("""
+        - **κ > 0.01**: 유의미한 평균회귀 존재 확인
+        - **κ 안정성**: 시간에 따른 κ 변동성 최소화
+        - **반감기**: Half-Life = ln(2)/κ → 5~60일 범위 선호
+        """)
+        
+        st.markdown("#### STEP 3: 동적 모니터링")
+        st.success("""
+        - 30일 롤링 윈도우로 κ 실시간 추적
+        - κ 증가 → 더 강한 평균회귀 → 좋은 신호
+        - κ 감소 → 약화된 평균회귀 → 위험 신호
+        """)
+        
+        st.markdown("#### STEP 4: 품질 필터링")
+        st.error("""
+        - **평균 κ**: 0.01 이상 (충분한 평균회귀 강도)
+        - **κ 일관성**: 시간에 따른 안정적 유지
+        - **Half-Life**: 5~60일 (적절한 수렴 속도)
+        """)
+        
+        st.markdown("#### STEP 5: 진입 타이밍 최적화")
+        st.info("""
+        - Z-Score + κ 강도 조합으로 최적 진입점 포착
+        - 높은 κ + 높은 Z-Score = 최상의 진입 기회
+        - 수학적으로 검증된 평균회귀 강도 활용
+        """)
+    
+    # =====================================================
+    # TAB 3: 상세 설명
+    # =====================================================
+    with tab3:
+        st.markdown("### OU(Ornstein-Uhlenbeck) 평균회귀 기반 페어 선정 방법론")
+        
+        st.markdown("#### 📍 핵심 원리")
+        st.info("""
+        스프레드가 평균으로 돌아가는 속도(평균회귀속도 κ)를 수학적으로 모델링하여,
+        가장 빠르고 안정적으로 수렴하는 페어를 선정하는 전략
+        """)
+        
+        st.markdown("#### 🎯 OU 과정 수학적 모델")
+        st.success("""
+        **dX(t) = κ(θ - X(t))dt + σdW(t)**
+        
+        - **κ (kappa)**: 평균회귀속도 → 클수록 빠른 수렴
+        - **θ (theta)**: 장기평균 → 스프레드가 수렴할 목표점
+        - **σ (sigma)**: 변동성 → 노이즈 수준
+        - **W(t)**: 브라운 운동 (랜덤 충격)
+        """)
+        
+        st.markdown("#### ⚡ OU 파라미터 추정 과정")
+        st.markdown("""
+        **1. AR(1) 모델로 근사**
+        - 스프레드 차분: ΔS(t) = S(t) - S(t-1)
+        - AR(1) 회귀: ΔS(t) = α + β×S(t-1) + ε(t)
+        - 최소자승법으로 α, β 추정
+        
+        **2. OU 파라미터 변환**
+        - κ = -β/Δt (Δt = 1/252 for daily data)
+        - θ = -α/β (장기 평균)
+        - σ = std(ε) × √(2κ) (변동성)
+        
+        **3. 반감기 계산**
+        - Half-Life = ln(2)/κ
+        - 스프레드가 절반으로 수렴하는 시간
+        """)
+        
+        st.markdown("#### 🎪 활용 시나리오")
+        st.markdown("""
+        **최적 활용 상황**
+        - **안정적 관계**: 구조적으로 연결된 자산 페어
+        - **높은 κ 값**: 빠른 평균회귀 속도
+        - **낮은 변동성**: 예측 가능한 수렴 패턴
+        - **일관된 반감기**: 시간에 따라 안정적
+        """)
+        
+        st.markdown("#### ✅ 장점 vs ❌ 단점")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.success("""
+            **✅ 장점**
+            - 수학적 엄밀성과 이론적 기반
+            - 평균회귀 강도 정량화
+            - 동적 품질 모니터링
+            - 진입/청산 타이밍 최적화
+            - 리스크 관리 용이
+            """)
+        
+        with col2:
+            st.error("""
+            **❌ 단점**
+            - 모델 복잡성 높음
+            - 구조변화 감지 지연
+            - 계산 집약적
+            - 파라미터 추정 오류 가능
+            - 비정상성 가정 위반 위험
+            """)
+        
+        st.markdown("#### 🔧 품질 필터링 기준")
+        st.info("""
+        **평균회귀속도 κ**: 0.01 이상 (충분한 평균회귀 강도)
+        **반감기**: 5~60일 (너무 빠르거나 느리지 않은 수렴)
+        **κ 안정성**: CV < 0.6 (시간에 따른 일관성)
+        **데이터 커버리지**: 90% 이상 (데이터 품질)
+        **비용비율**: 5.0 이상 (거래비용 대비 수익성)
+        """)
+    
+    # =====================================================
+    # TAB 4: 수식 및 계산
+    # =====================================================
+    with tab4:
+        st.markdown("### OU 평균회귀 방법론 수식 및 계산")
+        
+        st.markdown("#### 1. OU 확률미분방정식")
+        st.latex(r'''
+        dX_t = \kappa(\theta - X_t)dt + \sigma dW_t
+        ''')
+        
+        st.markdown("**파라미터 해석:**")
+        st.markdown("""
+        - $X_t$: 시점 t에서의 스프레드
+        - $\kappa$: 평균회귀속도 (mean reversion speed)
+        - $\theta$: 장기평균 (long-term mean)
+        - $\sigma$: 변동성 (volatility)
+        - $W_t$: 브라운 운동 (Brownian motion)
+        """)
+        
+        st.markdown("#### 2. AR(1) 근사 및 파라미터 추정")
+        st.latex(r'''
+        X_t - X_{t-1} = \alpha + \beta X_{t-1} + \epsilon_t
+        ''')
+        
+        st.latex(r'''
+        \kappa = -\frac{\beta}{\Delta t}, \quad \theta = -\frac{\alpha}{\beta}, \quad \sigma = \text{std}(\epsilon) \sqrt{2\kappa}
+        ''')
+        
+        st.markdown("#### 3. 반감기 (Half-Life) 계산")
+        st.latex(r'''
+        \text{Half-Life} = \frac{\ln(2)}{\kappa}
+        ''')
+        
+        st.markdown("**해석**: 스프레드가 현재 값에서 장기평균까지의 거리를 절반으로 줄이는 데 걸리는 시간")
+        
+        st.markdown("#### 4. OU 과정의 평균과 분산")
+        st.latex(r'''
+        E[X_t | X_0] = X_0 e^{-\kappa t} + \theta(1 - e^{-\kappa t})
+        ''')
+        
+        st.latex(r'''
+        \text{Var}[X_t | X_0] = \frac{\sigma^2}{2\kappa}(1 - e^{-2\kappa t})
+        ''')
+        
+        st.markdown("#### 5. Z-Score 계산")
+        st.latex(r'''
+        Z_t = \frac{X_t - \mu_X}{\sigma_X}
+        ''')
+        
+        st.markdown("여기서 $\mu_X$와 $\sigma_X$는 롤링 윈도우에서 계산된 평균과 표준편차")
+        
+        st.markdown("#### 6. 계산 예시")
+        
+        if enter_list:
+            # 첫 번째 페어를 예시로 사용
+            example_pair = enter_list[0]
+            
+            # 페어 이름 처리
+            if 'pair' in example_pair:
+                pair_str = example_pair['pair']
+            else:
+                pair_str = f"{example_pair.get('asset1', 'Asset1')}-{example_pair.get('asset2', 'Asset2')}"
+            
+            formatted_pair = format_pair_name(pair_str, asset_mapping)
+            
+            st.markdown(f"**예시 페어: {formatted_pair}**")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**OU 파라미터:**")
+                st.code(f"""
+κ (평균회귀속도): {example_pair.get('kappa_avg', 0.01):.4f}
+θ (장기평균): {example_pair.get('theta_avg', 0.0):.3f}
+σ (변동성): {example_pair.get('sigma', 0.1):.3f}
+반감기: {example_pair.get('half_life_avg', 50):.1f}일
+                """)
+            
+            with col2:
+                st.markdown("**거래 신호:**")
+                st.code(f"""
+현재 Z-Score: {example_pair.get('current_zscore', 0):.3f}
+헤지 비율: {example_pair.get('hedge_ratio', 1.0):.4f}
+품질 점수: {example_pair.get('quality_score', 0.0):.1f}
+진입 신호: {'진입' if abs(example_pair.get('current_zscore', 0)) > 2.0 else '관찰'}
+                """)
+        
+        st.markdown("#### 7. Python 구현 예시")
+        st.code("""
+import numpy as np
+from sklearn.linear_model import LinearRegression
+
+def estimate_ou_parameters(spread, dt=1/252):
+    \"\"\"OU 파라미터 추정\"\"\"
+    # AR(1) 회귀
+    spread_lag = spread[:-1].values.reshape(-1, 1)
+    spread_diff = spread.diff()[1:].values
+    
+    reg = LinearRegression()
+    reg.fit(spread_lag, spread_diff)
+    
+    beta = reg.coef_[0]
+    alpha = reg.intercept_
+    
+    # OU 파라미터 변환
+    kappa = -beta / dt
+    theta = -alpha / beta if beta != 0 else 0
+    
+    # 반감기
+    half_life = np.log(2) / kappa if kappa > 0 else np.inf
+    
+    return kappa, theta, half_life
+        """, language='python')
+        
+        st.markdown("#### 8. 최적화 팁")
+        st.info("""
+        **파라미터 선택 가이드:**
+        - **Formation Window**: 252일 (1년) - 충분한 데이터로 안정적 추정
+        - **Rolling Window**: 60일 - 최근 변화 반영과 안정성 균형
+        - **최소 κ**: 0.01 - 연간 약 2.5회 평균회귀
+        - **반감기 범위**: 5-60일 - 너무 빠르거나 느린 수렴 제외
+        - **κ CV**: < 0.6 - 시간에 따른 안정성 확보
+        """)
     
     # 푸터
     st.markdown("---")
