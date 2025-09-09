@@ -522,20 +522,15 @@ def main():
     # 메인 콘텐츠
     with st.spinner("OU 평균회귀 페어 분석 중... 잠시만 기다려주세요."):
         try:
-            if is_default:
-                st.info("🚀 기본 파라미터를 사용 중. 사전 계산된 결과를 즉시 표시")
-                
-                # 캐시에서 결과 로드
-                cache_data = cache_utils.load_cache('ou')
-                if cache_data:
-                    enter_list = cache_data.get('enter_signals', [])
-                    watch_list = cache_data.get('watch_signals', [])
-                    prices = load_price_data()
-                else:
-                    st.error("캐시 데이터를 찾을 수 없음")
-                    return
+            # 기본값인지 확인하고 캐시 우선 사용
+            cache_data = cache_utils.load_cache('ou')
+            if cache_data and cache_utils.parameters_match_default('ou', params):
+                st.info("📋 캐시된 결과를 사용합니다 (통합 스크리너와 동일)")
+                enter_list = cache_data.get('enter_signals', [])
+                watch_list = cache_data.get('watch_signals', [])
+                prices = load_price_data()
             else:
-                st.warning("⚙️ 사용자 정의 파라미터가 설정")
+                st.info("🔄 사용자 설정으로 실시간 계산합니다")
                 # 실시간 분석 실행
                 selected_pairs, prices = analyze_pairs(
                     formation_window, rolling_window, enter_threshold, exit_threshold,

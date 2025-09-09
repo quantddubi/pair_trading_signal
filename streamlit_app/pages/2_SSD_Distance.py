@@ -109,12 +109,9 @@ def analyze_pairs(formation_days, signal_days, enter_threshold, n_pairs):
             cached_enter = cache_data['enter_signals'][:n_pairs] if len(cache_data['enter_signals']) >= n_pairs else cache_data['enter_signals']
             cached_watch = cache_data['watch_signals'][:n_pairs] if len(cache_data['watch_signals']) >= n_pairs else cache_data['watch_signals']
             
-            if len(cached_enter) < n_pairs:
-                st.warning(f"📋 캐시에 {len(cached_enter)}개 진입신호만 있어서 실시간 계산으로 전환합니다")
-            else:
-                st.info("📋 캐시된 결과를 사용합니다 (통합 스크리너와 동일)")
-                prices = load_price_data()
-                return cached_enter, cached_watch, prices
+            st.info("📋 캐시된 결과를 사용합니다 (통합 스크리너와 동일)")
+            prices = load_price_data()
+            return cached_enter, cached_watch, prices
     
     # 캐시를 사용할 수 없으면 실시간 계산
     st.info("🔄 사용자 설정으로 실시간 계산합니다")
