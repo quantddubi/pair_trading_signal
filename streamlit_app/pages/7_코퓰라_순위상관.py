@@ -41,7 +41,7 @@ load_data = common_utils.load_data
 normalize_prices = common_utils.normalize_prices
 calculate_spread = common_utils.calculate_spread
 calculate_zscore = common_utils.calculate_zscore
-CopulaRankCorrelationPairTrading = copula_module.CopulaRankCorrelationPairTrading
+CopulaBasedPairScreening = copula_module.CopulaBasedPairScreening
 
 # 페이지 설정
 st.set_page_config(
@@ -96,29 +96,22 @@ def check_parameters_default(params):
 
 # 페어 분석 함수
 @st.cache_data
-def analyze_pairs(formation_days, signal_days, long_window, short_window, enter_threshold, n_pairs, 
-                  min_rank_corr, min_rank_corr_change, tail_quantile):
+def analyze_pairs(formation_window, min_tail_dependence, conditional_prob_threshold, 
+                  min_kendall_tau, min_data_coverage, copula_consistency_threshold, n_pairs):
     """페어 분석 실행"""
     prices = load_price_data()
     
-    trader = CopulaRankCorrelationPairTrading(
-        formation_window=formation_days,
-        signal_window=signal_days,
-        long_window=long_window,
-        short_window=short_window,
-        enter_threshold=enter_threshold,
-        exit_threshold=0.5,
-        stop_loss=3.0,
-        min_half_life=5,
-        max_half_life=60,
-        min_cost_ratio=5.0,
-        min_rank_corr=min_rank_corr,
-        min_rank_corr_change=min_rank_corr_change,
-        tail_quantile=tail_quantile
+    screener = CopulaBasedPairScreening(
+        formation_window=formation_window,
+        min_tail_dependence=min_tail_dependence,
+        conditional_prob_threshold=conditional_prob_threshold,
+        min_kendall_tau=min_kendall_tau,
+        min_data_coverage=min_data_coverage,
+        copula_consistency_threshold=copula_consistency_threshold
     )
     
-    enter_list, watch_list = trader.screen_pairs(prices, n_pairs=n_pairs)
-    return enter_list, watch_list, prices
+    selected_pairs = screener.select_pairs(prices, n_pairs=n_pairs)
+    return selected_pairs, prices
 
 def create_copula_scatter(prices, asset1, asset2, formation_days):
     """코퓰라 산점도 생성 (Uniform 변환 후)"""
@@ -545,114 +538,95 @@ def main():
     st.title("코퓰라·순위상관 기반 페어트레이딩")
     st.markdown("---")
     
-    # 코퓰라 순위상관 방법론 설명
+    # 12년 실시간 코퓰라 스크리닝 방법론 설명
     st.info("""
-    ### 코퓰라·순위상관 기반 페어 선정 방법론
+    ### 12년 실시간 코퓰라 페어 스크리닝 방법론
     
-    **핵심 원리**: 선형 상관관계를 넘어 비선형 의존성과 극단상황에서의 동조현상(꼬리의존성)을 포착하여 더 정교한 페어를 선정하는 고도화된 전략
+    **핵심 원리**: 12년 장기 형성기간으로 안정적 의존성 구조를 파악하고, 조건부 확률을 통해 현재 미스프라이싱된 페어를 실시간 발굴하는 고도화된 전략
     
     **상세 작동 과정**:
-    1. **순위상관 분석**: Pearson 대신 비모수적 순위상관 사용
-       - **Kendall's τ**: 순서쌍의 일치도 측정, 극값에 덜 민감
-       - **Spearman's ρ**: 순위 기반 선형관계, 단조증가 관계 포착
-       - **장기 vs 단기**: 레짐 변화와 구조적 관계 변화 감지
-    2. **꼬리 의존성 분석**: 극단상황에서의 공동움직임 측정
-       - **하방 꼬리**: 동시 급락 시 의존성 (위기 시 동조현상)
-       - **상방 꼬리**: 동시 급등 시 의존성 (호황 시 동조현상)
-       - **비대칭성**: 상/하방 의존성 차이 (시장 충격 비대칭성 반영)
-    3. **코퓰라 변환**: 수익률을 [0,1] 균등분포로 변환하여 순수 의존구조만 분석
-       - 개별 분포 특성과 독립적인 의존성 구조 추출
-       - 정규성 가정 불필요, 실제 데이터 분포 그대로 활용
-    4. **품질 필터링**: 
-       - **순위상관 변화**: 레짐 전환 감지 (최소 20% 변화)
-       - **꼬리 의존성**: 극단상황 공동반응 강도
-       - **일치성 비율**: 방향성 동조 빈도
+    1. **12년 형성기간 (≈3000일)**: 
+       - **장기 안정성**: 여러 경제 사이클에 걸친 구조적 관계 검증
+       - **데이터 품질**: 85% 이상 커버리지 요구 (12년 중 10년+ 데이터)
+       - **노이즈 제거**: 단기 변동성을 넘어선 본질적 의존성 추출
+    2. **6가지 주변분포 적합**:
+       - **Normal, Student-t, Logistic, Laplace, Skewed Normal, GEV**
+       - **자동 선택**: AIC/BIC/HQIC 기준으로 최적 분포 선택
+       - **품질 평가**: KS 검정으로 적합도 검증
+    3. **5가지 코퓰라 패밀리**:
+       - **Gaussian, Student-t, Gumbel, Clayton, Frank**
+       - **꼬리 의존성**: 상/하방 극단상황 동조성 ≥ 0.1
+       - **일관성 검증**: 롤링 기간 내 80% 이상 동일 코퓰라
+    4. **조건부 확률 미스프라이싱**: 
+       - **P(U≤u|V=v) = ∂C(u,v)/∂v**: 한 자산 조건부 다른 자산 확률
+       - **실시간 신호**: 5% 또는 95% 이탈 시 진입 신호
+       - **현재 포지션**: 12년 데이터 기준 상대적 위치 평가
     
-    **핵심**: **비선형 의존성 + 꼬리 동조 + 레짐 전환 감지**를 통한 강건한 페어 발굴
+    **핵심**: **12년 일관성 + 조건부 확률 + 꼬리 의존성**을 통한 고품질 실시간 페어 발굴
     
-    **장점**: 정규분포 가정 불필요, 극단위험 고려, 비선형 관계 포착, 시장 레짐 변화 감지
+    **장점**: 장기 안정성 검증, 실시간 미스프라이싱 감지, 극단위험 고려, 코퓰라 일관성 보장
     """)
     
     # 사이드바 설정
     st.sidebar.header("분석 설정")
-    st.sidebar.markdown("### 기간 설정")
+    st.sidebar.markdown("### 기간 설정 (12년 형성기간)")
     
-    formation_days = st.sidebar.slider(
-        "분석 기간 (일)",
-        min_value=252,
-        max_value=1260,  # 5년
-        value=756,       # 3년
-        step=126,        # 6개월 단위
-        help="페어 선정을 위한 과거 데이터 기간"
-    )
-    
-    signal_days = st.sidebar.slider(
-        "Z-스코어 계산 기간 (일)",
-        min_value=20,
-        max_value=120,
-        value=60,
-        step=10,
-        help="Z-스코어 신호 계산을 위한 롤링 윈도우"
-    )
-    
-    st.sidebar.markdown("### 순위상관 설정")
-    
-    long_window = st.sidebar.slider(
-        "장기 순위상관 윈도우 (일)",
-        min_value=126,
-        max_value=504,
-        value=252,
-        step=63,
-        help="장기 추세 순위상관 계산 윈도우"
-    )
-    
-    short_window = st.sidebar.slider(
-        "단기 순위상관 윈도우 (일)",
-        min_value=20,
-        max_value=120,
-        value=60,
-        step=10,
-        help="단기 변화 순위상관 계산 윈도우"
-    )
-    
-    st.sidebar.markdown("### 신호 설정")
-    
-    enter_threshold = st.sidebar.slider(
-        "진입 Z-스코어 임계값",
-        min_value=1.5,
-        max_value=3.0,
-        value=2.0,
-        step=0.1,
-        help="이 값 이상일 때 진입 신호 생성"
+    formation_window = st.sidebar.slider(
+        "형성 기간 (일)",
+        min_value=1000,
+        max_value=4000,
+        value=3000,  # 12년
+        step=250,
+        help="12년 형성기간 (≈3000 영업일)"
     )
     
     st.sidebar.markdown("### 코퓰라 파라미터")
     
-    min_rank_corr = st.sidebar.slider(
-        "최소 순위상관",
+    min_tail_dependence = st.sidebar.slider(
+        "최소 꼬리 의존성",
+        min_value=0.05,
+        max_value=0.3,
+        value=0.1,
+        step=0.01,
+        help="극단 상황 동조성 최소값 (≥0.1)"
+    )
+    
+    conditional_prob_threshold = st.sidebar.slider(
+        "조건부 확률 임계값",
+        min_value=0.01,
+        max_value=0.15,
+        value=0.05,
+        step=0.01,
+        help="미스프라이싱 신호 임계값 (5% 또는 95%)"
+    )
+    
+    min_kendall_tau = st.sidebar.slider(
+        "최소 켄달 타우 상관계수",
         min_value=0.1,
         max_value=0.8,
         value=0.3,
-        step=0.1,
-        help="최소 장기 순위상관 임계값"
-    )
-    
-    min_rank_corr_change = st.sidebar.slider(
-        "최소 순위상관 변화",
-        min_value=0.1,
-        max_value=0.5,
-        value=0.2,
         step=0.05,
-        help="레짐 변화 감지를 위한 최소 상관계수 변화"
+        help="페어 선정을 위한 최소 상관계수"
     )
     
-    tail_quantile = st.sidebar.slider(
-        "꼬리 분위수",
-        min_value=0.05,
-        max_value=0.20,
-        value=0.10,
-        step=0.01,
-        help="꼬리 의존성 계산용 극단값 비율"
+    st.sidebar.markdown("### 품질 필터")
+    
+    min_data_coverage = st.sidebar.slider(
+        "최소 데이터 커버리지",
+        min_value=0.7,
+        max_value=0.95,
+        value=0.85,
+        step=0.05,
+        help="12년 데이터 중 최소 비율 (85% = 10년)"
+    )
+    
+    copula_consistency_threshold = st.sidebar.slider(
+        "코퓰라 일관성 임계값",
+        min_value=0.5,
+        max_value=0.95,
+        value=0.8,
+        step=0.05,
+        help="롤링 기간 내 동일 코퓰라 비율 (≥80%)"
     )
     
     n_pairs = st.sidebar.slider(
@@ -666,19 +640,12 @@ def main():
     
     # 파라미터 딕셔너리
     params = {
-        'formation_window': formation_days,
-        'signal_window': signal_days,
-        'long_window': long_window,
-        'short_window': short_window,
-        'enter_threshold': enter_threshold,
-        'exit_threshold': 0.5,
-        'stop_loss': 3.0,
-        'min_half_life': 5,
-        'max_half_life': 60,
-        'min_cost_ratio': 5.0,
-        'min_rank_corr': min_rank_corr,
-        'min_rank_corr_change': min_rank_corr_change,
-        'tail_quantile': tail_quantile
+        'formation_window': formation_window,
+        'min_tail_dependence': min_tail_dependence,
+        'conditional_prob_threshold': conditional_prob_threshold,
+        'min_kendall_tau': min_kendall_tau,
+        'min_data_coverage': min_data_coverage,
+        'copula_consistency_threshold': copula_consistency_threshold
     }
     
     # 기본값 여부 확인
@@ -703,9 +670,9 @@ def main():
             st.error("캐시 데이터를 찾을 수 없음. 실시간 분석을 실행")
             with st.spinner("코퓰라·순위상관 기반 페어 분석 중... 잠시만 기다려주세요."):
                 try:
-                    enter_list, watch_list, prices = analyze_pairs(
-                        formation_days, signal_days, long_window, short_window, enter_threshold, n_pairs,
-                        min_rank_corr, min_rank_corr_change, tail_quantile
+                    selected_pairs, prices = analyze_pairs(
+                        formation_window, min_tail_dependence, conditional_prob_threshold,
+                        min_kendall_tau, min_data_coverage, copula_consistency_threshold, n_pairs
                     )
                     asset_mapping = load_asset_names()  # 자산 이름 매핑 로딩
                 except Exception as e:
@@ -717,9 +684,9 @@ def main():
         if st.button("🚀 분석 실행", type="primary"):
             with st.spinner("코퓰라·순위상관 기반 페어 분석 중... 잠시만 기다려주세요."):
                 try:
-                    enter_list, watch_list, prices = analyze_pairs(
-                        formation_days, signal_days, long_window, short_window, enter_threshold, n_pairs,
-                        min_rank_corr, min_rank_corr_change, tail_quantile
+                    selected_pairs, prices = analyze_pairs(
+                        formation_window, min_tail_dependence, conditional_prob_threshold,
+                        min_kendall_tau, min_data_coverage, copula_consistency_threshold, n_pairs
                     )
                     asset_mapping = load_asset_names()  # 자산 이름 매핑 로딩
                 except Exception as e:
@@ -734,56 +701,57 @@ def main():
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("진입 신호", f"{len(enter_list)}개", help="Z-스코어 임계값 이상의 페어")
+        st.metric("선별된 페어", f"{len(selected_pairs)}개", help="12년 형성기간에서 선별된 페어")
     
     with col2:
-        st.metric("관찰 대상", f"{len(watch_list)}개", help="진입 직전 단계의 페어")
+        entry_signals = sum(1 for pair in selected_pairs if pair.get('signal_type') in ['LONG', 'SHORT'])
+        st.metric("진입 신호", f"{entry_signals}개", help="현재 진입 가능한 페어")
     
     with col3:
-        avg_tail_dep = np.mean([s['tail_total'] for s in enter_list]) if enter_list else 0
-        st.metric("평균 꼬리의존성", f"{avg_tail_dep:.3f}", help="진입 신호들의 평균 꼬리의존성")
+        avg_tail_dep = np.mean([pair.get('tail_dependence_max', 0) for pair in selected_pairs]) if selected_pairs else 0
+        st.metric("평균 꼬리의존성", f"{avg_tail_dep:.3f}", help="선별된 페어들의 평균 꼬리의존성")
         
     with col4:
-        avg_copula_score = np.mean([s['copula_score'] for s in enter_list]) if enter_list else 0
-        st.metric("평균 코퓰라점수", f"{avg_copula_score:.1f}", help="진입 신호들의 평균 코퓰라 품질점수")
+        avg_kendall_tau = np.mean([pair.get('kendall_tau', 0) for pair in selected_pairs]) if selected_pairs else 0
+        st.metric("평균 켄달 타우", f"{avg_kendall_tau:.3f}", help="선별된 페어들의 평균 상관계수")
     
     st.markdown("---")
     
-    # 진입 신호 테이블
-    if enter_list:
-        st.header("추천 진입 페어")
+    # 선별된 페어 테이블
+    if selected_pairs:
+        st.header("선별된 코퓰라 페어 (12년 기준)")
         
         # 테이블 데이터 준비
         table_data = []
-        for i, signal in enumerate(enter_list, 1):
-            formatted_pair = format_pair_name(signal['pair'], asset_mapping)
+        for i, pair_info in enumerate(selected_pairs, 1):
+            formatted_pair = format_pair_name(pair_info['pair'], asset_mapping)
             table_data.append({
                 "순위": i,
                 "페어": formatted_pair,
-                "방향": signal['direction'],
-                "Z-Score": f"{signal['current_zscore']:.2f}",
-                "코퓰라점수": f"{signal['copula_score']:.1f}",
-                "꼬리의존성": f"{signal['tail_total']:.3f}",
-                "순위상관(τ)": f"{signal['tau_long']:.3f}",
-                "Half-Life": f"{signal['half_life']:.1f}일"
+                "신호": pair_info.get('signal_type', 'NEUTRAL'),
+                "조건부확률": f"{pair_info.get('conditional_prob', 0):.3f}",
+                "코퓰라": pair_info.get('copula_family', 'N/A'),
+                "꼬리의존성": f"{pair_info.get('tail_dependence_max', 0):.3f}",
+                "켄달 타우": f"{pair_info.get('kendall_tau', 0):.3f}",
+                "일관성": f"{pair_info.get('copula_consistency', 0):.1%}"
             })
         
-        df_enter = pd.DataFrame(table_data)
+        df_pairs = pd.DataFrame(table_data)
         
         # 스타일링된 테이블 표시
         st.dataframe(
-            df_enter,
+            df_pairs,
             use_container_width=True,
             hide_index=True,
             column_config={
                 "순위": st.column_config.NumberColumn("순위", width="small"),
-                "페어": st.column_config.TextColumn("페어", width="large"),
-                "방향": st.column_config.TextColumn("진입 방향", width="large"),
-                "Z-Score": st.column_config.TextColumn("Z-Score", width="small"),
-                "코퓰라점수": st.column_config.TextColumn("코퓰라점수", width="small"),
+                "페어": st.column_config.TextColumn("페어", width="medium"),
+                "신호": st.column_config.TextColumn("신호", width="small"),
+                "조건부확률": st.column_config.TextColumn("조건부확률", width="small"),
+                "코퓰라": st.column_config.TextColumn("코퓰라", width="small"),
                 "꼬리의존성": st.column_config.TextColumn("꼬리의존성", width="small"),
-                "순위상관(τ)": st.column_config.TextColumn("순위상관(τ)", width="small"),
-                "Half-Life": st.column_config.TextColumn("Half-Life", width="small")
+                "켄달 타우": st.column_config.TextColumn("켄달 타우", width="small"),
+                "일관성": st.column_config.TextColumn("일관성", width="small")
             }
         )
         
@@ -792,14 +760,14 @@ def main():
         # 페어 선택 및 차트 표시
         st.header("페어 상세 분석")
         
-        # 최고 추천 페어 표시
-        top_pair = enter_list[0]
+        # 최고 품질 페어 표시
+        top_pair = selected_pairs[0]
         top_formatted_pair = format_pair_name(top_pair['pair'], asset_mapping)
-        st.success(f"최고 추천 페어 (코퓰라점수: {top_pair['copula_score']:.1f}): {top_formatted_pair}")
+        st.success(f"최고 품질 페어 (꼬리의존성: {top_pair.get('tail_dependence_max', 0):.3f}): {top_formatted_pair}")
         
         # 페어 선택 옵션 (표시는 포맷팅된 이름, 값은 원래 페어)
-        pair_options = [signal['pair'] for signal in enter_list]
-        pair_display_names = [format_pair_name(signal['pair'], asset_mapping) for signal in enter_list]
+        pair_options = [pair_info['pair'] for pair_info in selected_pairs]
+        pair_display_names = [format_pair_name(pair_info['pair'], asset_mapping) for pair_info in selected_pairs]
         
         # selectbox에서 표시할 옵션들 생성
         pair_mapping = {display: original for display, original in zip(pair_display_names, pair_options)}

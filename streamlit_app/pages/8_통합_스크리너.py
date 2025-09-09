@@ -465,8 +465,7 @@ def create_simple_pair_chart(prices, asset1, asset2, method_name, signal_info, a
     return fig
 
 def main():
-    st.info("🚀 모든 방법론의 사전 계산된 결과를 통합하여 표시합니다.")
-    
+
     # 필요한 데이터 로딩
     try:
         prices = load_price_data()

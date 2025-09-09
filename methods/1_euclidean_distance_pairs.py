@@ -236,7 +236,10 @@ def main():
     거리 기반 페어트레이딩 실행 예제
     """
     # 데이터 로딩
-    file_path = "/Users/a/PycharmProjects/pair_trading_signal/data/MU Price(BBG).csv"
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    file_path = os.path.join(project_root, "data", "MU Price(BBG).csv")
     prices = load_data(file_path)
     
     # 거리 기반 페어트레이딩 객체 생성

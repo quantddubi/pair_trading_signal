@@ -94,12 +94,12 @@ def generate_euclidean_cache():
     with open(cache_file, 'wb') as f:
         pickle.dump(cache_data, f)
     
-    print(f"✅ 유클리드 거리 캐시 저장 완료: {len(enter_list)}개 진입신호, {len(watch_list)}개 관찰대상")
+    print(f"완료: 유클리드 거리 캐시 저장 완료: {len(enter_list)}개 진입신호, {len(watch_list)}개 관찰대상")
     return len(enter_list), len(watch_list)
 
 def generate_ssd_cache():
     """SSD 거리 방법론 캐시 생성"""
-    print("🔄 SSD 거리 방법론 캐시 생성 중...")
+    print("- SSD 거리 방법론 캐시 생성 중...")
     
     file_path = "data/MU Price(BBG).csv"
     prices = common_utils.load_data(file_path)
@@ -147,12 +147,12 @@ def generate_ssd_cache():
     with open(cache_file, 'wb') as f:
         pickle.dump(cache_data, f)
     
-    print(f"✅ SSD 거리 캐시 저장 완료: {len(enter_list)}개 진입신호, {len(watch_list)}개 관찰대상")
+    print(f"완료: SSD 거리 캐시 저장 완료: {len(enter_list)}개 진입신호, {len(watch_list)}개 관찰대상")
     return len(enter_list), len(watch_list)
 
 def generate_cointegration_cache():
     """공적분 방법론 캐시 생성"""
-    print("🔄 공적분 방법론 캐시 생성 중...")
+    print("- 공적분 방법론 캐시 생성 중...")
     
     file_path = "data/MU Price(BBG).csv"
     prices = common_utils.load_data(file_path)
@@ -193,11 +193,11 @@ def generate_cointegration_cache():
     with open('cache/cointegration_default.pkl', 'wb') as f:
         pickle.dump(cache_data, f)
     
-    print(f"✅ 공적분 캐시 완료: {len(enter_list)}개 진입 + {len(watch_list)}개 관찰")
+    print(f"완료: 공적분 캐시 완료: {len(enter_list)}개 진입 + {len(watch_list)}개 관찰")
 
 def generate_regime_cache():
     """상관관계 레짐 방법론 캐시 생성"""
-    print("🔄 상관관계 레짐 방법론 캐시 생성 중...")
+    print("- 상관관계 레짐 방법론 캐시 생성 중...")
     
     file_path = "data/MU Price(BBG).csv"
     prices = common_utils.load_data(file_path)
@@ -241,55 +241,66 @@ def generate_regime_cache():
     with open('cache/regime_default.pkl', 'wb') as f:
         pickle.dump(cache_data, f)
     
-    print(f"✅ 레짐 캐시 완료: {len(enter_list)}개 진입 + {len(watch_list)}개 관찰")
+    print(f"완료: 레짐 캐시 완료: {len(enter_list)}개 진입 + {len(watch_list)}개 관찰")
 
 def generate_ou_cache():
     """OU 평균회귀 방법론 캐시 생성"""
-    print("🔄 OU 평균회귀 방법론 캐시 생성 중...")
+    print("- OU 평균회귀 방법론 캐시 생성 중...")
     
     file_path = "data/MU Price(BBG).csv"
     prices = common_utils.load_data(file_path)
     
     trader = ou_module.OUMeanReversionPairTrading(
         formation_window=252,
-        signal_window=60,
-        enter_threshold=2.0,
+        rolling_window=60,
+        base_threshold=2.0,
         exit_threshold=0.5,
         stop_loss=3.0,
         min_half_life=5,
         max_half_life=60,
         min_cost_ratio=5.0,
-        min_mean_reversion_speed=0.01
+        min_mean_reversion_speed=0.01,
+        max_kappa_cv=0.6,
+        data_coverage_threshold=0.9,
+        winsorize_percentile=0.01
     )
     
-    enter_list, watch_list = trader.screen_pairs(prices, n_pairs=5)
+    selected_pairs = trader.select_pairs(prices, n_pairs=10)
+    
+    # 진입 신호와 관찰 대상 분리
+    enter_list = [pair for pair in selected_pairs if pair.get('signal_type') == 'ENTRY']
+    watch_list = [pair for pair in selected_pairs if pair.get('signal_type') == 'WATCH']
     
     cache_data = {
         'enter_signals': enter_list,
         'watch_signals': watch_list,
+        'selected_pairs': selected_pairs,
         'generated_at': datetime.now().isoformat(),
         'data_date': get_data_last_date(),
         'parameters': {
             'formation_window': 252,
-            'signal_window': 60,
-            'enter_threshold': 2.0,
+            'rolling_window': 60,
+            'base_threshold': 2.0,
             'exit_threshold': 0.5,
             'stop_loss': 3.0,
             'min_half_life': 5,
             'max_half_life': 60,
             'min_cost_ratio': 5.0,
-            'min_mean_reversion_speed': 0.01
+            'min_mean_reversion_speed': 0.01,
+            'max_kappa_cv': 0.6,
+            'data_coverage_threshold': 0.9,
+            'winsorize_percentile': 0.01
         }
     }
     
     with open('cache/ou_default.pkl', 'wb') as f:
         pickle.dump(cache_data, f)
     
-    print(f"✅ OU 캐시 완료: {len(enter_list)}개 진입 + {len(watch_list)}개 관찰")
+    print(f"완료: OU 캐시 완료: {len(selected_pairs)}개 선별 ({len(enter_list)}개 진입 + {len(watch_list)}개 관찰)")
 
 def generate_clustering_cache():
     """클러스터링 방법론 캐시 생성"""
-    print("🔄 클러스터링 방법론 캐시 생성 중...")
+    print("- 클러스터링 방법론 캐시 생성 중...")
     
     file_path = "data/MU Price(BBG).csv"
     prices = common_utils.load_data(file_path)
@@ -335,68 +346,59 @@ def generate_clustering_cache():
     with open('cache/clustering_default.pkl', 'wb') as f:
         pickle.dump(cache_data, f)
     
-    print(f"✅ 클러스터링 캐시 완료: {len(enter_list)}개 진입 + {len(watch_list)}개 관찰")
+    print(f"완료: 클러스터링 캐시 완료: {len(enter_list)}개 진입 + {len(watch_list)}개 관찰")
 
 def generate_copula_cache():
-    """코퓰라 순위상관 방법론 캐시 생성"""
-    print("🔄 코퓰라 순위상관 방법론 캐시 생성 중...")
+    """코퓰라 실시간 스크리닝 방법론 캐시 생성"""
+    print("- 코퓰라 실시간 스크리닝 방법론 캐시 생성 중...")
     
     file_path = "data/MU Price(BBG).csv"
     prices = common_utils.load_data(file_path)
     
-    trader = copula_module.CopulaRankCorrelationPairTrading(
-        formation_window=252,
-        signal_window=60,
-        long_window=252,
-        short_window=60,
-        enter_threshold=2.0,
-        exit_threshold=0.5,
-        stop_loss=3.0,
-        min_half_life=5,
-        max_half_life=60,
-        min_cost_ratio=5.0,
-        min_rank_corr=0.3,
-        min_rank_corr_change=0.2,
-        tail_quantile=0.1
+    screener = copula_module.CopulaBasedPairScreening(
+        formation_window=3000,  # 12년
+        min_tail_dependence=0.1,
+        conditional_prob_threshold=0.05,
+        min_kendall_tau=0.3,
+        min_data_coverage=0.85,
+        copula_consistency_threshold=0.8
     )
     
-    enter_list, watch_list = trader.screen_pairs(prices, n_pairs=5)
+    selected_pairs = screener.select_pairs(prices, n_pairs=10)
+    
+    # 신호 타입별 분리
+    enter_list = [pair for pair in selected_pairs if pair.get('signal_type') in ['LONG', 'SHORT']]
+    watch_list = [pair for pair in selected_pairs if pair.get('signal_type') == 'NEUTRAL']
     
     cache_data = {
         'enter_signals': enter_list,
         'watch_signals': watch_list,
+        'selected_pairs': selected_pairs,
         'generated_at': datetime.now().isoformat(),
         'data_date': get_data_last_date(),
         'parameters': {
-            'formation_window': 252,
-            'signal_window': 60,
-            'long_window': 252,
-            'short_window': 60,
-            'enter_threshold': 2.0,
-            'exit_threshold': 0.5,
-            'stop_loss': 3.0,
-            'min_half_life': 5,
-            'max_half_life': 60,
-            'min_cost_ratio': 5.0,
-            'min_rank_corr': 0.3,
-            'min_rank_corr_change': 0.2,
-            'tail_quantile': 0.1
+            'formation_window': 3000,
+            'min_tail_dependence': 0.1,
+            'conditional_prob_threshold': 0.05,
+            'min_kendall_tau': 0.3,
+            'min_data_coverage': 0.85,
+            'copula_consistency_threshold': 0.8
         }
     }
     
     with open('cache/copula_default.pkl', 'wb') as f:
         pickle.dump(cache_data, f)
     
-    print(f"✅ 코퓰라 캐시 완료: {len(enter_list)}개 진입 + {len(watch_list)}개 관찰")
+    print(f"완료: 코퓰라 캐시 완료: {len(selected_pairs)}개 선별 ({len(enter_list)}개 진입 + {len(watch_list)}개 중성)")
 
 def main():
     """모든 방법론 캐시 생성"""
     print("=" * 60)
-    print("🚀 페어트레이딩 방법론별 캐시 생성 시작")
+    print("페어트레이딩 방법론별 캐시 생성 시작")
     print("=" * 60)
     
     data_date = get_data_last_date()
-    print(f"📅 데이터 기준일: {data_date}")
+    print(f"데이터 기준일: {data_date}")
     
     try:
         # 각 방법론별 캐시 생성 (시간이 오래 걸리므로 순차적으로)

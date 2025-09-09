@@ -365,7 +365,10 @@ def main():
     상관관계 레짐 전환 기반 페어트레이딩 실행 예제
     """
     # 데이터 로딩
-    file_path = "/Users/a/PycharmProjects/pair_trading_signal/data/MU Price(BBG).csv"
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    file_path = os.path.join(project_root, "data", "MU Price(BBG).csv")
     prices = load_data(file_path)
     
     # 간단한 섹터 분류 예제 (실제로는 더 정교하게 분류)

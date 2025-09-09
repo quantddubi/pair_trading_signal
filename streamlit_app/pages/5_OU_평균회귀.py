@@ -87,24 +87,27 @@ def format_pair_name(pair, asset_mapping):
 
 # 페어 분석 함수
 @st.cache_data
-def analyze_pairs(formation_window, signal_window, enter_threshold, exit_threshold, stop_loss, min_half_life, max_half_life, min_cost_ratio, min_mean_reversion_speed, n_pairs):
+def analyze_pairs(formation_window, rolling_window, enter_threshold, exit_threshold, stop_loss, min_half_life, max_half_life, min_cost_ratio, min_mean_reversion_speed, max_kappa_cv, data_coverage_threshold, winsorize_percentile, n_pairs):
     """페어 분석 실행"""
     prices = load_price_data()
     
     trader = OUMeanReversionPairTrading(
         formation_window=formation_window,
-        signal_window=signal_window,
-        enter_threshold=enter_threshold,
+        rolling_window=rolling_window,
+        base_threshold=enter_threshold,
         exit_threshold=exit_threshold,
         stop_loss=stop_loss,
         min_half_life=min_half_life,
         max_half_life=max_half_life,
         min_cost_ratio=min_cost_ratio,
-        min_mean_reversion_speed=min_mean_reversion_speed
+        min_mean_reversion_speed=min_mean_reversion_speed,
+        max_kappa_cv=max_kappa_cv,
+        data_coverage_threshold=data_coverage_threshold,
+        winsorize_percentile=winsorize_percentile
     )
     
-    enter_list, watch_list = trader.screen_pairs(prices, n_pairs=n_pairs)
-    return enter_list, watch_list, prices
+    selected_pairs = trader.select_pairs(prices, n_pairs=n_pairs)
+    return selected_pairs, prices
 
 def create_ou_mean_reversion_chart(prices, asset1, asset2, formation_window, signal_window, asset_mapping=None):
     """OU 평균회귀 분석 차트 생성"""
@@ -496,6 +499,44 @@ def main():
         help="OU 과정의 최소 평균회귀 속도"
     )
     
+    st.sidebar.markdown("### 고급 설정")
+    
+    rolling_window = st.sidebar.slider(
+        "Rolling Window (일)", 
+        min_value=30, 
+        max_value=120, 
+        value=60,
+        help="OU 파라미터 추정용 롤링 윈도우"
+    )
+    
+    max_kappa_cv = st.sidebar.slider(
+        "최대 κ 변동계수", 
+        min_value=0.2, 
+        max_value=1.0, 
+        value=0.6, 
+        step=0.1,
+        help="κ 안정성 체크 (낮을수록 안정적)"
+    )
+    
+    data_coverage_threshold = st.sidebar.slider(
+        "최소 데이터 커버리지", 
+        min_value=0.7, 
+        max_value=0.95, 
+        value=0.9, 
+        step=0.05,
+        help="데이터 품질 임계값 (90% = 252일 중 227일)"
+    )
+    
+    winsorize_percentile = st.sidebar.slider(
+        "윈저라이즈 퍼센타일", 
+        min_value=0.001, 
+        max_value=0.05, 
+        value=0.01, 
+        step=0.001,
+        format="%.3f",
+        help="이상치 처리 임계값 (1% = 상하위 1% 제거)"
+    )
+    
     n_pairs = st.sidebar.slider(
         "분석할 페어 수",
         min_value=5,
@@ -512,14 +553,17 @@ def main():
     # 파라미터 딕셔너리
     params = {
         'formation_window': formation_window,
-        'signal_window': signal_window,
+        'rolling_window': rolling_window,
         'enter_threshold': enter_threshold,
         'exit_threshold': exit_threshold,
         'stop_loss': stop_loss,
         'min_half_life': min_half_life,
         'max_half_life': max_half_life,
         'min_cost_ratio': min_cost_ratio,
-        'min_mean_reversion_speed': min_mean_reversion_speed
+        'min_mean_reversion_speed': min_mean_reversion_speed,
+        'max_kappa_cv': max_kappa_cv,
+        'data_coverage_threshold': data_coverage_threshold,
+        'winsorize_percentile': winsorize_percentile
     }
     
     # 기본값 여부 확인
@@ -543,9 +587,11 @@ def main():
             else:
                 st.warning("⚙️ 사용자 정의 파라미터가 설정")
                 # 실시간 분석 실행
-                enter_list, watch_list, prices = analyze_pairs(
-                    formation_window, signal_window, enter_threshold, exit_threshold,
-                    stop_loss, min_half_life, max_half_life, min_cost_ratio, min_mean_reversion_speed, n_pairs
+                selected_pairs, prices = analyze_pairs(
+                    formation_window, rolling_window, enter_threshold, exit_threshold,
+                    stop_loss, min_half_life, max_half_life, min_cost_ratio, 
+                    min_mean_reversion_speed, max_kappa_cv, data_coverage_threshold, 
+                    winsorize_percentile, n_pairs
                 )
             
             asset_mapping = load_asset_names()  # 자산 이름 매핑 로딩
@@ -560,51 +606,52 @@ def main():
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("진입 신호", f"{len(enter_list)}개", help="Z-스코어 임계값 이상의 페어")
+        st.metric("선별된 페어", f"{len(selected_pairs)}개", help="모든 품질 필터를 통과한 페어")
     
     with col2:
-        st.metric("관찰 대상", f"{len(watch_list)}개", help="진입 직전 단계의 페어")
+        entry_signals = sum(1 for pair in selected_pairs if pair.get('signal_type') == 'ENTRY')
+        st.metric("진입 신호", f"{entry_signals}개", help="현재 진입 가능한 페어")
     
     with col3:
-        avg_kappa = np.mean([s.get('kappa_avg', 0.01) for s in enter_list]) if enter_list else 0
+        avg_kappa = np.mean([pair.get('kappa_avg', 0.01) for pair in selected_pairs]) if selected_pairs else 0
         st.metric("평균 κ", f"{avg_kappa:.4f}", help="평균회귀속도")
         
     with col4:
-        avg_half_life = np.mean([s.get('half_life_avg', 50) for s in enter_list]) if enter_list else 0
-        st.metric("평균 반감기", f"{avg_half_life:.1f}일", help="진입 신호들의 평균 반감기")
+        avg_half_life = np.mean([pair.get('half_life_avg', 50) for pair in selected_pairs]) if selected_pairs else 0
+        st.metric("평균 반감기", f"{avg_half_life:.1f}일", help="선별된 페어들의 평균 반감기")
     
     st.markdown("---")
     
-    # 진입 신호 테이블
-    if enter_list:
-        st.header("추천 진입 페어")
+    # 선별된 페어 테이블
+    if selected_pairs:
+        st.header("선별된 OU 평균회귀 페어")
         
         # 테이블 데이터 준비
         table_data = []
-        for i, signal in enumerate(enter_list, 1):
-            formatted_pair = format_pair_name(signal['pair'], asset_mapping)
+        for i, pair_info in enumerate(selected_pairs, 1):
+            formatted_pair = format_pair_name(pair_info['pair'], asset_mapping)
             table_data.append({
                 "순위": i,
                 "페어": formatted_pair,
-                "방향": signal['direction'],
-                "Z-Score": f"{signal['current_zscore']:.2f}",
-                "κ (속도)": f"{signal.get('kappa_avg', 0.01):.4f}",
-                "반감기": f"{signal.get('half_life_avg', 50):.1f}일",
-                "품질점수": f"{signal.get('quality_score', 0.0):.1f}",
-                "헤지비율": f"{signal.get('hedge_ratio', 1.0):.4f}"
+                "신호": pair_info.get('signal_type', 'NEUTRAL'),
+                "Z-Score": f"{pair_info.get('current_zscore', 0):.2f}",
+                "κ (속도)": f"{pair_info.get('kappa_avg', 0.01):.4f}",
+                "반감기": f"{pair_info.get('half_life_avg', 50):.1f}일",
+                "품질점수": f"{pair_info.get('quality_score', 0.0):.1f}",
+                "헤지비율": f"{pair_info.get('hedge_ratio', 1.0):.4f}"
             })
         
-        df_enter = pd.DataFrame(table_data)
+        df_pairs = pd.DataFrame(table_data)
         
         # 스타일링된 테이블 표시
         st.dataframe(
-            df_enter,
+            df_pairs,
             use_container_width=True,
             hide_index=True,
             column_config={
                 "순위": st.column_config.NumberColumn("순위", width="small"),
                 "페어": st.column_config.TextColumn("페어", width="medium"),
-                "방향": st.column_config.TextColumn("진입 방향", width="large"),
+                "신호": st.column_config.TextColumn("신호 타입", width="small"),
                 "Z-Score": st.column_config.TextColumn("Z-Score", width="small"),
                 "κ (속도)": st.column_config.TextColumn("κ (속도)", width="small"),
                 "반감기": st.column_config.TextColumn("반감기", width="small"),
@@ -619,13 +666,13 @@ def main():
         st.header("페어 상세 분석")
         
         # 최고 추천 페어 표시
-        top_pair = enter_list[0]
+        top_pair = selected_pairs[0]
         top_formatted_pair = format_pair_name(top_pair['pair'], asset_mapping)
-        st.success(f"최고 추천 페어: {top_formatted_pair}")
+        st.success(f"최고 품질 페어: {top_formatted_pair}")
         
         # 페어 선택 옵션 (표시는 포맷팅된 이름, 값은 원래 페어)
-        pair_options = [signal['pair'] for signal in enter_list]
-        pair_display_names = [format_pair_name(signal['pair'], asset_mapping) for signal in enter_list]
+        pair_options = [pair_info['pair'] for pair_info in selected_pairs]
+        pair_display_names = [format_pair_name(pair_info['pair'], asset_mapping) for pair_info in selected_pairs]
         
         # selectbox에서 표시할 옵션들 생성
         pair_mapping = {display: original for display, original in zip(pair_display_names, pair_options)}
