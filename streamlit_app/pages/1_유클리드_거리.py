@@ -304,9 +304,194 @@ def main():
     st.markdown("---")
     
     # 방법론 개요를 탭으로 구성
-    tab1, tab2, tab3 = st.tabs(["📊 방법론 다이어그램", "📝 상세 설명", "🔍 수식 및 계산"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📈 분석 결과 요약", "📊 방법론 다이어그램", "📝 상세 설명", "🔍 수식 및 계산"])
     
     with tab1:
+        # 사이드바 설정을 먼저 가져와서 분석 결과를 표시
+        st.sidebar.header("분석 설정")
+        st.sidebar.markdown("### 기간 설정")
+        
+        formation_days = st.sidebar.slider(
+            "분석 기간 (일)",
+            min_value=252,
+            max_value=1260,  # 5년
+            value=756,       # 3년
+            step=126,        # 6개월 단위
+            help="페어 선정을 위한 과거 데이터 기간"
+        )
+        
+        # Z-스코어 계산 기간은 분석 기간과 동일하게 설정
+        signal_days = formation_days
+        st.sidebar.info(f"**Z-스코어 계산 기간**: {signal_days}일 (분석 기간과 동일)")
+        
+        st.sidebar.markdown("### 신호 설정")
+        
+        enter_threshold = st.sidebar.slider(
+            "진입 Z-스코어 임계값",
+            min_value=1.5,
+            max_value=3.0,
+            value=2.0,
+            step=0.1,
+            help="이 값 이상일 때 진입 신호 생성"
+        )
+        
+        n_pairs = st.sidebar.slider(
+            "분석할 페어 수",
+            min_value=5,
+            max_value=20,
+            value=10,
+            step=1,
+            help="상위 몇 개 페어를 분석할지 설정"
+        )
+        
+        # 분석 실행 버튼
+        if st.sidebar.button("분석 실행", type="primary"):
+            st.cache_data.clear()  # 캐시 클리어
+        
+        # 파라미터 딕셔너리
+        params = {
+            'formation_window': formation_days,
+            'signal_window': signal_days,
+            'enter_threshold': enter_threshold,
+            'exit_threshold': 0.5,
+            'stop_loss': 3.0,
+            'min_half_life': 5,
+            'max_half_life': 60,
+            'min_cost_ratio': 5.0,
+        }
+        
+        # 기본값 여부 확인
+        def check_parameters_default(params):
+            """파라미터가 기본값인지 확인"""
+            default_params = cache_utils.get_default_parameters('euclidean')
+            for key, value in default_params.items():
+                if params.get(key) != value:
+                    return False
+            return True
+        
+        is_default = check_parameters_default(params)
+        
+        # 메인 콘텐츠
+        with st.spinner("유클리드 거리 기반 페어 분석 중... 잠시만 기다려주세요."):
+            try:
+                if is_default:
+                    st.success("🚀 기본 파라미터를 사용 중. 사전 계산된 결과를 즉시 표시")
+                    # 캐시에서 로딩
+                    cache_data = cache_utils.load_cache('euclidean')
+                    if cache_data:
+                        enter_list = cache_data.get('enter_signals', [])
+                        watch_list = cache_data.get('watch_signals', [])
+                        prices = load_price_data()
+                    else:
+                        st.error("캐시 데이터를 찾을 수 없음")
+                        return
+                else:
+                    st.warning("⚙️ 사용자 정의 파라미터가 설정")
+                    # 실시간 분석 실행
+                    enter_list, watch_list, prices = analyze_pairs(formation_days, signal_days, enter_threshold, n_pairs)
+                
+                asset_mapping = load_asset_names()  # 자산 이름 매핑 로딩
+                
+            except Exception as e:
+                st.error(f"분석 중 오류 발생: {str(e)}")
+                return
+        
+        # 분석 결과 요약
+        st.header("📈 분석 결과 요약")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("진입 신호", f"{len(enter_list)}개", help="Z-스코어 임계값 이상의 페어")
+        
+        with col2:
+            st.metric("관찰 대상", f"{len(watch_list)}개", help="진입 직전 단계의 페어")
+        
+        with col3:
+            avg_distance = np.mean([s.get('distance', 0) for s in enter_list]) if enter_list else 0
+            st.metric("평균 거리", f"{avg_distance:.2f}", help="진입 신호들의 평균 유클리드 거리")
+            
+        with col4:
+            avg_half_life = np.mean([s.get('half_life', 50) for s in enter_list]) if enter_list else 0
+            st.metric("평균 반감기", f"{avg_half_life:.1f}일", help="진입 신호들의 평균 반감기")
+        
+        st.markdown("---")
+        
+        # 진입 신호 테이블
+        if enter_list:
+            st.header("추천 진입 페어")
+            
+            # 테이블 데이터 준비
+            table_data = []
+            for i, signal in enumerate(enter_list, 1):
+                formatted_pair = format_pair_name(signal['pair'], asset_mapping)
+                table_data.append({
+                    "순위": i,
+                    "페어": formatted_pair,
+                    "방향": signal['direction'],
+                    "Z-Score": f"{signal['current_zscore']:.2f}",
+                    "거리": f"{signal.get('distance', 0):.2f}",
+                    "반감기": f"{signal.get('half_life', 50):.1f}일",
+                    "품질점수": f"{signal.get('quality_score', 0.0):.1f}",
+                    "헤지비율": f"{signal.get('hedge_ratio', 1.0):.4f}"
+                })
+            
+            df_enter = pd.DataFrame(table_data)
+            
+            # 스타일링된 테이블 표시
+            st.dataframe(
+                df_enter,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "순위": st.column_config.NumberColumn("순위", width="small"),
+                    "페어": st.column_config.TextColumn("페어", width="medium"),
+                    "방향": st.column_config.TextColumn("진입 방향", width="large"),
+                    "Z-Score": st.column_config.TextColumn("Z-Score", width="small"),
+                    "거리": st.column_config.TextColumn("거리", width="small"),
+                    "반감기": st.column_config.TextColumn("반감기", width="small"),
+                    "품질점수": st.column_config.TextColumn("품질점수", width="small"),
+                    "헤지비율": st.column_config.TextColumn("헤지비율", width="small")
+                }
+            )
+        else:
+            st.warning("현재 진입 신호가 있는 페어가 없습니다.")
+        
+        # 관찰 대상 테이블
+        if watch_list:
+            st.markdown("---")
+            st.header("관찰 대상 페어")
+            
+            # 테이블 데이터 준비
+            watch_table_data = []
+            for i, signal in enumerate(watch_list, 1):
+                formatted_pair = format_pair_name(signal['pair'], asset_mapping)
+                watch_table_data.append({
+                    "순위": i,
+                    "페어": formatted_pair,
+                    "Z-Score": f"{signal['current_zscore']:.2f}",
+                    "거리": f"{signal.get('distance', 0):.2f}",
+                    "반감기": f"{signal.get('half_life', 50):.1f}일",
+                    "상태": "진입 대기"
+                })
+            
+            df_watch = pd.DataFrame(watch_table_data)
+            
+            st.dataframe(
+                df_watch,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "순위": st.column_config.NumberColumn("순위", width="small"),
+                    "페어": st.column_config.TextColumn("페어", width="medium"),
+                    "Z-Score": st.column_config.TextColumn("Z-Score", width="small"),
+                    "거리": st.column_config.TextColumn("거리", width="small"),
+                    "반감기": st.column_config.TextColumn("반감기", width="small"),
+                    "상태": st.column_config.TextColumn("상태", width="small")
+                }
+            )
+
+    with tab2:
         st.markdown("### 📊 상세 작동 과정")
         
         # Step 1: 가격 정규화
@@ -536,200 +721,6 @@ distance = sqrt(0.0009) = 0.03
             2. 거래비용 대비 수익성 검증
             3. Z-Score 모니터링 시작
             """)
-    
-    st.markdown("---")
-    
-    # 사이드바 설정
-    st.sidebar.header("분석 설정")
-    st.sidebar.markdown("### 기간 설정")
-    
-    formation_days = st.sidebar.slider(
-        "분석 기간 (일)",
-        min_value=252,
-        max_value=1260,  # 5년
-        value=756,       # 3년
-        step=126,        # 6개월 단위
-        help="페어 선정을 위한 과거 데이터 기간"
-    )
-    
-    # Z-스코어 계산 기간은 분석 기간과 동일하게 설정
-    signal_days = formation_days
-    st.sidebar.info(f"**Z-스코어 계산 기간**: {signal_days}일 (분석 기간과 동일)")
-    
-    st.sidebar.markdown("### 신호 설정")
-    
-    enter_threshold = st.sidebar.slider(
-        "진입 Z-스코어 임계값",
-        min_value=1.5,
-        max_value=3.0,
-        value=2.0,
-        step=0.1,
-        help="이 값 이상일 때 진입 신호 생성"
-    )
-    
-    n_pairs = st.sidebar.slider(
-        "분석할 페어 수",
-        min_value=5,
-        max_value=20,
-        value=10,
-        step=1,
-        help="상위 몇 개 페어를 분석할지 설정"
-    )
-    
-    # 분석 실행 버튼
-    if st.sidebar.button("분석 실행", type="primary"):
-        st.cache_data.clear()  # 캐시 클리어
-    
-    # 메인 콘텐츠
-    with st.spinner("페어 분석 중... 잠시만 기다려주세요."):
-        try:
-            enter_list, watch_list, prices = analyze_pairs(formation_days, signal_days, enter_threshold, n_pairs)
-            asset_mapping = load_asset_names()  # 자산 이름 매핑 로딩
-        except Exception as e:
-            st.error(f"분석 중 오류 발생: {str(e)}")
-            return
-    
-    # 분석 결과 요약
-    st.header("분석 결과 요약")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("진입 신호", f"{len(enter_list)}개", help="Z-스코어 임계값 이상의 페어")
-    
-    with col2:
-        st.metric("관찰 대상", f"{len(watch_list)}개", help="진입 직전 단계의 페어")
-    
-    with col3:
-        st.metric("분석 기간", f"{formation_days}일", help="페어 선정에 사용된 데이터 기간")
-        
-    with col4:
-        avg_zscore = np.mean([abs(s['current_zscore']) for s in enter_list]) if enter_list else 0
-        st.metric("평균 Z-스코어", f"{avg_zscore:.2f}", help="진입 신호들의 평균 Z-스코어")
-    
-    st.markdown("---")
-    
-    # 진입 신호 테이블
-    if enter_list:
-        st.header("추천 진입 페어")
-        
-        # 테이블 데이터 준비
-        table_data = []
-        for i, signal in enumerate(enter_list, 1):
-            formatted_pair = format_pair_name(signal['pair'], asset_mapping)
-            table_data.append({
-                "순위": i,
-                "페어": formatted_pair,
-                "방향": signal['direction'],
-                "Z-Score": f"{signal['current_zscore']:.2f}",
-                "Half-Life": f"{signal['half_life']:.1f}일",
-                "거리": f"{signal['distance_rank']:.3f}"
-            })
-        
-        df_enter = pd.DataFrame(table_data)
-        
-        # 스타일링된 테이블 표시
-        st.dataframe(
-            df_enter,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "순위": st.column_config.NumberColumn("순위", width="small"),
-                "페어": st.column_config.TextColumn("페어", width="medium"),
-                "방향": st.column_config.TextColumn("진입 방향", width="large"),
-                "Z-Score": st.column_config.TextColumn("Z-Score", width="small"),
-                "Half-Life": st.column_config.TextColumn("Half-Life", width="small"),
-                "거리": st.column_config.TextColumn("거리", width="small")
-            }
-        )
-        
-        st.markdown("---")
-        
-        # 페어 선택 및 차트 표시
-        st.header("페어 상세 분석")
-        
-        # 최고 추천 페어 표시
-        top_pair = enter_list[0]
-        top_formatted_pair = format_pair_name(top_pair['pair'], asset_mapping)
-        st.success(f"최고 추천 페어: {top_formatted_pair}")
-        
-        # 페어 선택 옵션 (표시는 포맷팅된 이름, 값은 원래 페어)
-        pair_options = [signal['pair'] for signal in enter_list]
-        pair_display_names = [format_pair_name(signal['pair'], asset_mapping) for signal in enter_list]
-        
-        # selectbox에서 표시할 옵션들 생성
-        pair_mapping = {display: original for display, original in zip(pair_display_names, pair_options)}
-        
-        selected_display_pair = st.selectbox(
-            "분석할 페어 선택:",
-            options=pair_display_names,
-            index=0,
-            help="차트로 분석할 페어를 선택하세요"
-        )
-        
-        # 선택된 페어의 상세 정보 표시
-        selected_pair = pair_mapping[selected_display_pair]
-        selected_pair_info = None
-        
-        # 선택된 페어의 정보 찾기
-        for signal in enter_list:
-            if signal['pair'] == selected_pair:
-                selected_pair_info = signal
-                break
-        
-        if selected_pair_info:
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("진입 방향", selected_pair_info['direction'])
-            with col2:
-                st.metric("현재 Z-Score", f"{selected_pair_info['current_zscore']:.2f}")
-            with col3:
-                st.metric("Half-Life", f"{selected_pair_info['half_life']:.1f}일")
-        
-        if selected_pair:
-            asset1, asset2 = selected_pair.split('-')
-            
-            # 차트 생성 및 표시
-            with st.spinner(f"{selected_display_pair} 차트 생성 중..."):
-                fig = create_pair_chart(prices, asset1, asset2, formation_days, signal_days, asset_mapping)
-                
-                if fig:
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # 차트 설명
-                    st.info("""
-                    **차트 설명:**
-                    - 상단: 두 자산의 정규화된 가격 추이
-                    - 중간: 스프레드 (두 자산 간 가격 차이)
-                    - 하단: Z-스코어 (평균회귀 신호)
-                    - 노란색 배경: 최근 6개월 기간
-                    - 주황색 선: 진입 임계값 (±2.0)
-                    """)
-    
-    else:
-        st.warning("현재 진입 조건을 만족하는 페어가 없습니다.")
-        st.info("임계값을 낮추거나 분석 기간을 조정해보세요.")
-    
-    # 관찰 대상 테이블
-    if watch_list:
-        st.header("관찰 대상 페어")
-        
-        table_data = []
-        for i, signal in enumerate(watch_list, 1):
-            formatted_pair = format_pair_name(signal['pair'], asset_mapping)
-            table_data.append({
-                "순위": i,
-                "페어": formatted_pair,
-                "Z-Score": f"{signal['current_zscore']:.2f}",
-                "Half-Life": f"{signal['half_life']:.1f}일",
-                "거리": f"{signal['distance_rank']:.3f}"
-            })
-        
-        df_watch = pd.DataFrame(table_data)
-        st.dataframe(df_watch, use_container_width=True, hide_index=True)
-    
-    # 푸터
-    st.markdown("---")
 
 # Streamlit 페이지로 실행
 main()
