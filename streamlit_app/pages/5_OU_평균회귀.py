@@ -86,7 +86,9 @@ st.markdown("""
 def load_price_data():
     """가격 데이터 로딩"""
     data_path = get_data_file_path()
-    prices = pd.read_csv(data_path, index_col='Date', parse_dates=True)
+    # common_utils의 load_data 함수 사용 (BBG 형식 헤더 처리)
+    from utils.common_utils import load_data
+    prices = load_data(data_path)
     return prices
 
 # 자산명 매핑 로딩
