@@ -77,13 +77,13 @@ def load_asset_names():
     return asset_mapping
 
 def format_pair_name(pair, asset_mapping):
-    """페어 이름을 이름(티커) 형태로 포맷팅"""
+    """페어 이름을 이름만 표시하는 형태로 포맷팅"""
     asset1, asset2 = pair.split('-')
     
     name1 = asset_mapping.get(asset1, asset1)
     name2 = asset_mapping.get(asset2, asset2)
     
-    return f"{name1}({asset1}) - {name2}({asset2})"
+    return f"{name1} - {name2}"
 
 def create_simple_pair_chart(prices, asset1, asset2, method_name, signal_info, asset_mapping=None):
     """간단한 페어 차트 생성 (통합 스크리너용)"""
@@ -383,7 +383,7 @@ def main():
                 # 페어 이름 포맷팅
                 formatted_pair = format_pair_name(pair, asset_mapping)
                 
-                with st.expander(f"{formatted_pair} ({icon} {name})"):
+                with st.expander(f"{formatted_pair} ({name})"):
                     # 기본 정보 표시
                     col1, col2, col3, col4 = st.columns(4)
                     with col1:
@@ -444,7 +444,7 @@ def main():
             formatted_pair = format_pair_name(signal['pair'], asset_mapping)
             
             score_text = f"Z-Score: {signal['current_zscore']:.2f}" if 'current_zscore' in signal else f"편차: {signal['current_deviation']:.2f}σ" if 'current_deviation' in signal else "점수: N/A"
-            with st.expander(f"{i}. {formatted_pair} ({icon} {name}) - {score_text}"):
+            with st.expander(f"{i}. {formatted_pair} ({name}) - {score_text}"):
                 # 기본 정보 표시
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
