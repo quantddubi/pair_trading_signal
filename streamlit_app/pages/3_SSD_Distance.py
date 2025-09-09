@@ -1,5 +1,5 @@
 """
-페어트레이딩 분석 도구 - 유클리드 거리 기반 방법론
+Pair Trading Analysis Tool - SSD Distance Methodology
 """
 import streamlit as st
 import pandas as pd
@@ -30,7 +30,7 @@ def import_module_from_file(file_path, module_name):
 
 # 모듈 import
 common_utils = import_module_from_file(os.path.join(project_root, "utils/common_utils.py"), "common_utils")
-euclidean_module = import_module_from_file(os.path.join(project_root, "methods/1_euclidean_distance_pairs.py"), "euclidean_distance_pairs")
+ssd_module = import_module_from_file(os.path.join(project_root, "methods/2_ssd_distance_pairs.py"), "ssd_distance_pairs")
 cache_utils = import_module_from_file(os.path.join(project_root, "utils/cache_utils.py"), "cache_utils")
 
 # 필요한 함수들 import
@@ -38,12 +38,12 @@ load_data = common_utils.load_data
 normalize_prices = common_utils.normalize_prices
 calculate_spread = common_utils.calculate_spread
 calculate_zscore = common_utils.calculate_zscore
-EuclideanDistancePairTrading = euclidean_module.EuclideanDistancePairTrading
+SSDDistancePairTrading = ssd_module.SSDDistancePairTrading
 
 # 페이지 설정
 st.set_page_config(
-    page_title="유클리드 거리 방법론",
-    page_icon="📐",
+    page_title="SSD Distance Methodology",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -101,9 +101,9 @@ def analyze_pairs(formation_days, signal_days, enter_threshold, n_pairs):
         'transaction_cost': 0.0001
     }
     
-    # 기본 파라미터와 일치하면 캐시 사용
-    if cache_utils.parameters_match_default('euclidean', user_params):
-        cache_data = cache_utils.load_cache('euclidean')
+    # 기본 파라미터와 일치하면 캐시 사용 (상위 n_pairs개만 반환)
+    if cache_utils.parameters_match_default('ssd', user_params):
+        cache_data = cache_utils.load_cache('ssd')
         if cache_data:
             # 캐시된 데이터에서 요청된 페어 수만큼 반환
             cached_enter = cache_data['enter_signals'][:n_pairs] if len(cache_data['enter_signals']) >= n_pairs else cache_data['enter_signals']
@@ -120,7 +120,7 @@ def analyze_pairs(formation_days, signal_days, enter_threshold, n_pairs):
     st.info("🔄 사용자 설정으로 실시간 계산합니다")
     prices = load_price_data()
     
-    trader = EuclideanDistancePairTrading(
+    trader = SSDDistancePairTrading(
         formation_window=formation_days,
         signal_window=formation_days,  # 페어 선정 기간과 동일
         enter_threshold=enter_threshold,
@@ -136,7 +136,7 @@ def analyze_pairs(formation_days, signal_days, enter_threshold, n_pairs):
     return enter_list, watch_list, prices
 
 def create_pair_chart(prices, asset1, asset2, formation_days, signal_days, asset_mapping=None):
-    """페어 차트 생성"""
+    """페어 차트 생성 (SSD 방법론에 맞게 수정)"""
     # 전체 기간 데이터
     end_date = prices.index[-1]
     start_date = end_date - timedelta(days=int(formation_days * 1.4))  # 여유를 두고
@@ -147,24 +147,26 @@ def create_pair_chart(prices, asset1, asset2, formation_days, signal_days, asset
         st.error(f"데이터가 없습니다: {asset1}, {asset2}")
         return None
     
-    # 가격 정규화 (리베이스)
-    normalized_data = normalize_prices(chart_data, method='rebase')
+    # 누적수익률 계산 (SSD 방법론)
+    cumulative_returns = (1 + chart_data.pct_change().fillna(0)).cumprod()
+    
+    # 정규화 (첫날=1)
+    normalized_data = cumulative_returns / cumulative_returns.iloc[0]
     
     # 최근 6개월 기준점 계산
     six_months_ago = end_date - timedelta(days=180)
     
-    # 스프레드 및 Z-스코어 계산 (페어 선정 기간과 일치)
+    # 스프레드 및 편차 계산 (SSD 방법론)
     recent_data = chart_data.tail(formation_days)
-    normalized_recent = normalize_prices(recent_data, method='rebase')
-    spread = calculate_spread(normalized_recent[asset1], normalized_recent[asset2], hedge_ratio=1.0)
-    # Z-score 계산 - 안전한 윈도우 크기 사용
-    zscore_window = max(20, min(60, len(spread)//4))  # 최소 20일, 최대 60일
-    zscore = calculate_zscore(spread, window=zscore_window)
+    recent_cumret = (1 + recent_data.pct_change().fillna(0)).cumprod()
+    recent_normalized = recent_cumret / recent_cumret.iloc[0]
     
-    # 디버깅: Z-score 정보 출력 (개발용)
-    if len(zscore.dropna()) == 0:
-        st.error(f"Z-score 계산 오류: 스프레드 길이={len(spread)}, 윈도우={zscore_window}")
-        return None
+    spread = recent_normalized[asset1] - recent_normalized[asset2]
+    
+    # 표준편차 기준 편차값 계산 (2σ 트리거)
+    spread_mean = spread.mean()
+    spread_std = spread.std()
+    deviation_sigma = (spread - spread_mean) / spread_std if spread_std > 0 else spread * 0
     
     # 서브플롯 생성
     fig = make_subplots(
@@ -173,20 +175,20 @@ def create_pair_chart(prices, asset1, asset2, formation_days, signal_days, asset
         vertical_spacing=0.05,
         row_heights=[0.4, 0.3, 0.3],
         subplot_titles=[
-            f'{asset1} vs {asset2} - 정규화된 가격',
-            'Spread (Price Difference)',
-            'Z-Score'
+            f'{asset1} vs {asset2} - 누적수익률 (SSD 방법론)',
+            'Spread (Cumulative Return Difference)',
+            'Deviation (σ units)'
         ]
     )
     
-    # 1. 정규화된 가격 차트
+    # 1. 누적수익률 차트
     fig.add_trace(
         go.Scatter(
             x=normalized_data.index,
             y=normalized_data[asset1],
-            name=asset1,
+            name=f'{asset1} (누적수익률)',
             line=dict(color='blue', width=2),
-            hovertemplate=f'<b>{asset1}</b><br>Date: %{{x}}<br>Price: %{{y:.4f}}<extra></extra>'
+            hovertemplate=f'<b>{asset1}</b><br>Date: %{{x}}<br>Cumulative Return: %{{y:.4f}}<extra></extra>'
         ),
         row=1, col=1
     )
@@ -195,14 +197,14 @@ def create_pair_chart(prices, asset1, asset2, formation_days, signal_days, asset
         go.Scatter(
             x=normalized_data.index,
             y=normalized_data[asset2],
-            name=asset2,
+            name=f'{asset2} (누적수익률)',
             line=dict(color='red', width=2),
-            hovertemplate=f'<b>{asset2}</b><br>Date: %{{x}}<br>Price: %{{y:.4f}}<extra></extra>'
+            hovertemplate=f'<b>{asset2}</b><br>Date: %{{x}}<br>Cumulative Return: %{{y:.4f}}<extra></extra>'
         ),
         row=1, col=1
     )
     
-    # 2. 스프레드 차트
+    # 2. 스프레드 차트 (누적수익률 차이)
     spread_dates = spread.index
     fig.add_trace(
         go.Scatter(
@@ -215,28 +217,32 @@ def create_pair_chart(prices, asset1, asset2, formation_days, signal_days, asset
         row=2, col=1
     )
     
-    # 스프레드 제로 라인
-    fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5, row=2, col=1)
+    # 스프레드 평균 라인
+    fig.add_hline(y=spread_mean, line_dash="dash", line_color="gray", opacity=0.5, row=2, col=1)
     
-    # 3. Z-스코어 차트
-    zscore_dates = zscore.dropna().index
-    zscore_values = zscore.dropna().values
+    # 3. 편차 차트 (σ 단위)
+    deviation_dates = deviation_sigma.index
+    deviation_values = deviation_sigma.values
     
     fig.add_trace(
         go.Scatter(
-            x=zscore_dates,
-            y=zscore_values,
-            name='Z-Score',
+            x=deviation_dates,
+            y=deviation_values,
+            name='Deviation (σ)',
             line=dict(color='purple', width=2),
-            hovertemplate='<b>Z-Score</b><br>Date: %{x}<br>Value: %{y:.2f}<extra></extra>'
+            hovertemplate='<b>Deviation</b><br>Date: %{x}<br>Value: %{y:.2f}σ<extra></extra>'
         ),
         row=3, col=1
     )
     
-    # Z-스코어 임계값 라인들
+    # 편차 임계값 라인들 (2σ 트리거)
     fig.add_hline(y=2.0, line_dash="dash", line_color="orange", opacity=0.7, row=3, col=1)
     fig.add_hline(y=-2.0, line_dash="dash", line_color="orange", opacity=0.7, row=3, col=1)
     fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5, row=3, col=1)
+    
+    # 1.5σ 관찰 라인들
+    fig.add_hline(y=1.5, line_dash="dot", line_color="yellow", opacity=0.5, row=3, col=1)
+    fig.add_hline(y=-1.5, line_dash="dot", line_color="yellow", opacity=0.5, row=3, col=1)
     
     # 최근 6개월 배경색 강조
     fig.add_vrect(
@@ -262,9 +268,9 @@ def create_pair_chart(prices, asset1, asset2, formation_days, signal_days, asset
     if asset_mapping:
         name1 = asset_mapping.get(asset1, asset1)
         name2 = asset_mapping.get(asset2, asset2)
-        chart_title = f"페어트레이딩 분석: {name1}({asset1}) - {name2}({asset2})"
+        chart_title = f"SSD 페어트레이딩 분석: {name1}({asset1}) - {name2}({asset2})"
     else:
-        chart_title = f"페어트레이딩 분석: {asset1} - {asset2}"
+        chart_title = f"SSD 페어트레이딩 분석: {asset1} - {asset2}"
     
     # 레이아웃 설정
     fig.update_layout(
@@ -277,16 +283,16 @@ def create_pair_chart(prices, asset1, asset2, formation_days, signal_days, asset
     
     # 축 레이블 설정
     fig.update_xaxes(title_text="Date", row=3, col=1)
-    fig.update_yaxes(title_text="Normalized Price", row=1, col=1)
+    fig.update_yaxes(title_text="Cumulative Return Index", row=1, col=1)
     fig.update_yaxes(title_text="Spread", row=2, col=1)
-    fig.update_yaxes(title_text="Z-Score", row=3, col=1)
+    fig.update_yaxes(title_text="Deviation (σ)", row=3, col=1)
     
-    # Z-스코어 임계값 주석
-    current_zscore = zscore_values[-1] if len(zscore_values) > 0 else 0
+    # 현재 편차값 주석
+    current_deviation = deviation_values[-1] if len(deviation_values) > 0 else 0
     fig.add_annotation(
-        x=zscore_dates[-1] if len(zscore_dates) > 0 else end_date,
-        y=current_zscore,
-        text=f"현재 Z-Score: {current_zscore:.2f}",
+        x=deviation_dates[-1] if len(deviation_dates) > 0 else end_date,
+        y=current_deviation,
+        text=f"현재 편차: {current_deviation:.2f}σ",
         showarrow=True,
         arrowhead=2,
         arrowsize=1,
@@ -300,39 +306,44 @@ def create_pair_chart(prices, asset1, asset2, formation_days, signal_days, asset
 
 # 메인 앱
 def main():
-    st.title("유클리드 거리 기반 페어트레이딩")
+    st.title("SSD Distance Pair Trading")
     st.markdown("---")
     
-    # 방법론 개요를 탭으로 구성
-    tab1, tab2, tab3, tab4 = st.tabs(["📈 분석 결과 요약", "📊 상세 작동 과정", "📝 상세 설명", "🔍 수식 및 계산"])
+    # 4개 탭 구성 (아이콘 + 명칭 통일)
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📈 분석 결과 요약",    # 실제 분석 + 인터랙션
+        "📊 상세 작동 과정",     # 방법론 단계별 시각화
+        "📝 상세 설명",         # 텍스트 중심 설명
+        "🔍 수식 및 계산"       # 수학적 기초
+    ])
     
     with tab1:
-        # 사이드바 설정을 먼저 가져와서 분석 결과를 표시
-        st.sidebar.header("분석 설정")
+        # 사이드바 설정
+        st.sidebar.header("Analysis Settings")
         st.sidebar.markdown("### 기간 설정")
         
         formation_days = st.sidebar.slider(
-            "분석 기간 (일)",
+            "형성 기간 (일)",
             min_value=252,
-            max_value=1260,  # 5년
-            value=756,       # 3년
-            step=126,        # 6개월 단위
-            help="페어 선정을 위한 과거 데이터 기간"
+            max_value=756,   # 3년 최대
+            value=252,       # 12개월 (논문 기준)
+            step=63,         # 3개월 단위
+            help="페어 선정을 위한 과거 데이터 기간 (논문: 12개월)"
         )
         
-        # Z-스코어 계산 기간은 분석 기간과 동일하게 설정
+        # 신호 계산 기간은 형성 기간과 동일
         signal_days = formation_days
-        st.sidebar.info(f"**Z-스코어 계산 기간**: {signal_days}일 (분석 기간과 동일)")
+        st.sidebar.info(f"**신호 계산 기간**: {signal_days}일 (형성 기간과 동일)")
         
-        st.sidebar.markdown("### 신호 설정")
+        st.sidebar.markdown("### 트리거 설정")
         
         enter_threshold = st.sidebar.slider(
-            "진입 Z-스코어 임계값",
+            "진입 임계값 (σ)",
             min_value=1.5,
             max_value=3.0,
-            value=2.0,
+            value=2.0,       # 논문 기준
             step=0.1,
-            help="이 값 이상일 때 진입 신호 생성"
+            help="논문 기준: 2σ 이상 벗어나면 진입"
         )
         
         n_pairs = st.sidebar.slider(
@@ -345,7 +356,7 @@ def main():
         )
         
         # 분석 실행 버튼
-        if st.sidebar.button("분석 실행", type="primary"):
+        if st.sidebar.button("Run Analysis", type="primary"):
             st.cache_data.clear()  # 캐시 클리어
         
         # 파라미터 딕셔너리
@@ -363,7 +374,7 @@ def main():
         # 기본값 여부 확인
         def check_parameters_default(params):
             """파라미터가 기본값인지 확인"""
-            default_params = cache_utils.get_default_parameters('euclidean')
+            default_params = cache_utils.get_default_parameters('ssd')
             for key, value in default_params.items():
                 if params.get(key) != value:
                     return False
@@ -372,12 +383,12 @@ def main():
         is_default = check_parameters_default(params)
         
         # 메인 콘텐츠
-        with st.spinner("유클리드 거리 기반 페어 분석 중... 잠시만 기다려주세요."):
+        with st.spinner("SSD 거리 기반 페어 분석 중... 잠시만 기다려주세요."):
             try:
                 if is_default:
                     st.success("🚀 기본 파라미터를 사용 중. 사전 계산된 결과를 즉시 표시")
                     # 캐시에서 로딩
-                    cache_data = cache_utils.load_cache('euclidean')
+                    cache_data = cache_utils.load_cache('ssd')
                     if cache_data:
                         enter_list = cache_data.get('enter_signals', [])
                         watch_list = cache_data.get('watch_signals', [])
@@ -402,19 +413,19 @@ def main():
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("진입 신호", f"{len(enter_list)}개", help="Z-스코어 임계값 이상의 페어")
+            st.metric("Entry Signals", f"{len(enter_list)}개", help="2σ 이상 벗어난 페어")
         
         with col2:
-            st.metric("관찰 대상", f"{len(watch_list)}개", help="진입 직전 단계의 페어")
+            st.metric("Watch List", f"{len(watch_list)}개", help="1.5σ~2σ 범위의 페어")
         
         with col3:
-            avg_distance = np.mean([s.get('distance', 0) for s in enter_list]) if enter_list else 0
-            st.metric("평균 거리", f"{avg_distance:.2f}", help="진입 신호들의 평균 유클리드 거리")
+            avg_ssd = np.mean([s.get('ssd_distance', 0) for s in enter_list]) if enter_list else 0
+            st.metric("평균 SSD 거리", f"{avg_ssd:.3f}", help="진입 신호들의 평균 SSD 거리")
             
         with col4:
             avg_half_life = np.mean([s.get('half_life', 50) for s in enter_list]) if enter_list else 0
             st.metric("평균 반감기", f"{avg_half_life:.1f}일", help="진입 신호들의 평균 반감기")
-        
+    
         st.markdown("---")
         
         # 진입 신호 테이블
@@ -429,11 +440,10 @@ def main():
                     "순위": i,
                     "페어": formatted_pair,
                     "방향": signal['direction'],
-                    "Z-Score": f"{signal['current_zscore']:.2f}",
-                    "거리": f"{signal.get('distance', 0):.2f}",
+                    "편차": f"{signal.get('current_deviation', 0):.2f}σ",
+                    "SSD거리": f"{signal.get('ssd_distance', 0):.3f}",
                     "반감기": f"{signal.get('half_life', 50):.1f}일",
-                    "품질점수": f"{signal.get('quality_score', 0.0):.1f}",
-                    "헤지비율": f"{signal.get('hedge_ratio', 1.0):.4f}"
+                    "품질점수": f"{signal.get('quality_score', 0.0):.1f}"
                 })
             
             df_enter = pd.DataFrame(table_data)
@@ -447,11 +457,10 @@ def main():
                     "순위": st.column_config.NumberColumn("순위", width="small"),
                     "페어": st.column_config.TextColumn("페어", width="medium"),
                     "방향": st.column_config.TextColumn("진입 방향", width="large"),
-                    "Z-Score": st.column_config.TextColumn("Z-Score", width="small"),
-                    "거리": st.column_config.TextColumn("거리", width="small"),
+                    "편차": st.column_config.TextColumn("편차(σ)", width="small"),
+                    "SSD거리": st.column_config.TextColumn("SSD거리", width="small"),
                     "반감기": st.column_config.TextColumn("반감기", width="small"),
-                    "품질점수": st.column_config.TextColumn("품질점수", width="small"),
-                    "헤지비율": st.column_config.TextColumn("헤지비율", width="small")
+                    "품질점수": st.column_config.TextColumn("품질점수", width="small")
                 }
             )
         else:
@@ -469,8 +478,8 @@ def main():
                 watch_table_data.append({
                     "순위": i,
                     "페어": formatted_pair,
-                    "Z-Score": f"{signal['current_zscore']:.2f}",
-                    "거리": f"{signal.get('distance', 0):.2f}",
+                    "편차": f"{signal.get('current_deviation', 0):.2f}σ",
+                    "SSD거리": f"{signal.get('ssd_distance', 0):.3f}",
                     "반감기": f"{signal.get('half_life', 50):.1f}일",
                     "상태": "진입 대기"
                 })
@@ -484,8 +493,8 @@ def main():
                 column_config={
                     "순위": st.column_config.NumberColumn("순위", width="small"),
                     "페어": st.column_config.TextColumn("페어", width="medium"),
-                    "Z-Score": st.column_config.TextColumn("Z-Score", width="small"),
-                    "거리": st.column_config.TextColumn("거리", width="small"),
+                    "편차": st.column_config.TextColumn("편차(σ)", width="small"),
+                    "SSD거리": st.column_config.TextColumn("SSD거리", width="small"),
                     "반감기": st.column_config.TextColumn("반감기", width="small"),
                     "상태": st.column_config.TextColumn("상태", width="small")
                 }
@@ -504,7 +513,7 @@ def main():
             combined_pairs.append({
                 'display': f"[진입 신호] {formatted_pair}",
                 'pair': signal['pair'],
-                'type': '진입 신호',
+                'type': 'Entry Signals',
                 'signal_data': signal
             })
         
@@ -514,7 +523,7 @@ def main():
             combined_pairs.append({
                 'display': f"[관찰 대상] {formatted_pair}",
                 'pair': signal['pair'],
-                'type': '관찰 대상',
+                'type': 'Watch List',
                 'signal_data': signal
             })
         
@@ -546,19 +555,19 @@ def main():
                     st.metric("페어 타입", selected_pair_info['type'])
                 
                 with col2:
-                    current_zscore = signal_data.get('current_zscore', 0)
-                    st.metric("현재 Z-Score", f"{current_zscore:.2f}")
+                    current_deviation = signal_data.get('current_deviation', 0)
+                    st.metric("현재 편차", f"{current_deviation:.2f}σ")
                 
                 with col3:
-                    distance = signal_data.get('distance', 0)
-                    st.metric("유클리드 거리", f"{distance:.2f}")
+                    ssd_distance = signal_data.get('ssd_distance', 0)
+                    st.metric("SSD 거리", f"{ssd_distance:.3f}")
                 
                 with col4:
                     half_life = signal_data.get('half_life', 50)
                     st.metric("반감기", f"{half_life:.1f}일")
                 
                 # 진입 신호인 경우 추가 정보 표시
-                if selected_pair_info['type'] == '진입 신호':
+                if selected_pair_info['type'] == 'Entry Signals':
                     st.markdown("#### 📊 진입 신호 상세 정보")
                     
                     col1, col2, col3 = st.columns(3)
@@ -568,12 +577,11 @@ def main():
                         st.info(f"**진입 방향**: {direction}")
                     
                     with col2:
-                        hedge_ratio = signal_data.get('hedge_ratio', 1.0)
-                        st.info(f"**헤지 비율**: {hedge_ratio:.4f}")
-                    
-                    with col3:
                         quality_score = signal_data.get('quality_score', 0.0)
                         st.info(f"**품질 점수**: {quality_score:.1f}")
+                    
+                    with col3:
+                        st.info(f"**논문 기준**: 2σ 이상 벗어나면 진입")
                 
                 # 차트 생성 및 표시
                 st.markdown("#### 📈 페어 차트 분석")
@@ -591,23 +599,25 @@ def main():
                         # 차트 해석 도움말
                         with st.expander("📖 차트 해석 가이드"):
                             st.markdown("""
-                            **📊 차트 구성**:
-                            - **상단**: 정규화된 가격 비교 (두 자산의 상대적 움직임)
-                            - **중단**: 스프레드 (Asset1 - Asset2의 차이)
-                            - **하단**: Z-Score (표준화된 스프레드 신호)
+                            **📊 SSD 방법론 차트 구성**:
+                            - **상단**: 누적수익률 비교 (배당재투자 포함, SSD 방법론 기준)
+                            - **중단**: 스프레드 (누적수익률 차이)
+                            - **하단**: 편차 (σ 단위) - 2σ 이상 시 진입 신호
                             
                             **🎯 거래 신호 해석**:
-                            - **Z-Score > +2.0**: Asset1 매도, Asset2 매수 신호
-                            - **Z-Score < -2.0**: Asset1 매수, Asset2 매도 신호
-                            - **Z-Score → 0**: 포지션 청산 신호
+                            - **편차 > +2.0σ**: Asset1 매도, Asset2 매수 신호
+                            - **편차 < -2.0σ**: Asset1 매수, Asset2 매도 신호
+                            - **편차 → 0**: 포지션 청산 신호
                             
                             **📅 기간 구분**:
                             - **노란색 배경**: 최근 6개월 (거래 집중 분석 구간)
-                            - **전체 구간**: 과거 패턴 참고용
+                            - **주황색 실선**: 진입 임계값 (±2σ)
+                            - **노란색 점선**: 관찰 임계값 (±1.5σ)
                             
-                            **⚠️ 주의사항**:
-                            - Half-Life가 짧을수록 빠른 수렴 예상
-                            - 거래비용을 고려한 실제 진입/청산 결정 필요
+                            **📚 학술적 근거**:
+                            - Gatev et al. (2006) 논문 방법론
+                            - 형성기간 표준편차 기준 2σ 트리거
+                            - Wall Street 실무 관행을 학술적으로 구현
                             """)
                     else:
                         st.error("차트 생성 중 오류가 발생했습니다.")
@@ -620,174 +630,206 @@ def main():
     with tab2:
         st.markdown("### 📊 상세 작동 과정")
         
-        # Step 1: 가격 정규화
+        # Step 1: 형성 기간 데이터 준비
         with st.container():
             col1, col2 = st.columns([1, 2])
             
             with col1:
                 st.markdown("### STEP 1")
-                st.info("**🔄 가격 정규화**")
+                st.info("**📅 형성 기간 설정**")
             
             with col2:
                 st.markdown("")
                 st.markdown("")
                 st.markdown("""
-                #### 최근 3년(756일) 데이터를 첫 거래일 = 1.0으로 리베이싱
-                - ✅ 절대 가격차이 제거
-                - ✅ 상대적 움직임만 비교
-                - ✅ 모든 자산 동일 스케일
+                #### 12개월(252일) 형성 기간으로 페어 선정
+                - ✅ Gatev et al. (2006) 논문의 표준 방법
+                - ✅ 충분한 데이터로 안정적 관계 파악
+                - ✅ 계절성 및 사이클 효과 포함
+                - ✅ 시장 상황 변화 적절히 반영
                 """)
         
         st.markdown("---")
         
-        # Step 2: 유클리드 거리 계산
+        # Step 2: 누적수익률 계산
         with st.container():
             col1, col2 = st.columns([1, 2])
             
             with col1:
                 st.markdown("### STEP 2")
-                st.warning("**📏 유클리드 거리 계산**")
+                st.warning("**📈 누적수익률 계산**")
             
             with col2:
                 st.markdown("")
                 st.markdown("")
                 st.markdown("""
-                #### 모든 자산 쌍에 대해 정규화된 가격 경로 간 유클리드 거리 측정
+                #### 각 자산의 cumulative total return index 계산 (배당재투자 가정)
                 """)
-                st.latex(r"d = \sqrt{\sum_{i=1}^{n} (Asset1_i - Asset2_i)^2}")
-                st.caption("n = 756일 (3년), 거리가 낮을수록 유사한 움직임")
+                st.latex(r"CumReturn_t = \prod_{i=1}^{t} (1 + r_i)")
+                st.caption("rt: 일일 수익률, 첫날을 1.0으로 정규화하여 상대적 성과 비교")
         
         st.markdown("---")
         
-        # Step 3: 거리 기준 스크리닝
+        # Step 3: SSD 계산
         with st.container():
             col1, col2 = st.columns([1, 2])
             
             with col1:
                 st.markdown("### STEP 3")
-                st.success("**🎯 거리 기준 스크리닝**")
+                st.success("**📏 SSD 거리 계산**")
             
             with col2:
                 st.markdown("")
                 st.markdown("")
                 st.markdown("""
-                #### 거리값이 가장 낮은 순서로 정렬
+                #### 정규화된 두 가격시계열 간 제곱편차의 합
                 """)
+                st.latex(r"SSD_{AB} = \sum_{t=1}^{T} (P_A^{norm}(t) - P_B^{norm}(t))^2")
                 
-                # 거리 기준 테이블
+                # SSD 해석 테이블
                 st.markdown("""
-                | 순위 | 페어 예시 | 거리 | 결과 |
-                |------|-----------|------|------|
-                | 1 | A-B | 2.3 | ✅ **선정** |
-                | 2 | C-D | 3.7 | ✅ **선정** |
-                | 3 | E-F | 5.2 | ✅ **선정** |
-                | ... | ... | ... | ... |
-                | 50 | Y-Z | 25.8 | ❌ 제외 |
+                | SSD 값 | 해석 | 페어 적합성 |
+                |---------|------|-------------|
+                | 0 ~ 0.1 | 거의 동일한 움직임 | ⭐⭐⭐ 최적 |
+                | 0.1 ~ 0.3 | 매우 유사한 움직임 | ⭐⭐ 우수 |
+                | 0.3 ~ 0.5 | 유사한 움직임 | ⭐ 양호 |
+                | > 0.5 | 상이한 움직임 | ❌ 부적합 |
                 """)
-                st.caption("💡 가장 비슷한 움직임을 보인 페어들을 우선 선택")
+                st.caption("💡 SSD가 낮을수록 두 자산이 더 유사하게 움직임")
         
         st.markdown("---")
         
-        # Step 4: 품질 필터링
+        # Step 4: 최적 페어 매칭
         with st.container():
             col1, col2 = st.columns([1, 2])
             
             with col1:
                 st.markdown("### STEP 4")
-                st.error("**🔍 품질 필터링**")
+                st.error("**🎯 최적 페어 매칭**")
             
             with col2:
                 st.markdown("")
                 st.markdown("")
                 
-                # 두 개의 서브 컬럼으로 필터 표시
+                # 두 개의 서브 컬럼으로 매칭 과정 설명
                 subcol1, subcol2 = st.columns(2)
                 
                 with subcol1:
                     st.markdown("""
-                    #### Half-Life 검증
-                    - **정의**: 스프레드가 평균으로 절반 수렴하는 시간
-                    - **계산**: AR(1) 모델 → HL = -ln(2)/ln(φ)
-                    - **기준**: 5~60일 범위
+                    #### 매칭 알고리즘
+                    1. **각 자산별로** 모든 다른 자산과의 SSD 계산
+                    2. **최소 SSD** 찾아 최적 파트너 결정
+                    3. **상호 매칭** 확인 (A→B, B→A 모두 최적)
+                    4. **중복 제거** 및 최종 페어 리스트 구성
                     """)
                 
                 with subcol2:
                     st.markdown("""
-                    #### Half-Life 해석
-                    - 5~15일: 단기 수익형 ⚡
-                    - 15~30일: 우수한 페어 ⭐
-                    - 30~60일: 중장기형 🕐
-                    - >60일: 제외 ❌
+                    #### 품질 검증 과정
+                    - **Half-Life**: 5~60일 범위 확인
+                    - **코인테그레이션**: 장기 균형관계 검증  
+                    - **거래비용**: 수익성 대비 비용 분석
+                    - **안정성**: 형성기간 내 일관성 확인
                     """)
-                
+        
+        st.markdown("---")
+        
+        # Step 5: 트리거 시스템
+        with st.container():
+            col1, col2 = st.columns([1, 2])
+            
+            with col1:
+                st.markdown("### STEP 5")
+                st.info("**⚡ 트리거 시스템**")
+            
+            with col2:
+                st.markdown("")
+                st.markdown("")
                 st.markdown("""
-                #### Z-Score 계산
-                - **윈도우**: 60일 롤링
-                - **목적**: 가격 괴리 신호 생성
-                - **기준**: 적절한 통계적 유의성 확보
+                #### 형성기간 표준편차 기준 2σ 트리거 시스템
+                """)
+                st.latex(r"Trigger = |Spread_t| > 2 \times \sigma_{formation}")
+                
+                # 트리거 레벨 설명
+                st.markdown("""
+                | 편차 수준 | 의미 | 액션 |
+                |----------|------|------|
+                | < 1.5σ | 정상 범위 | 📊 모니터링 |
+                | 1.5σ ~ 2σ | 관찰 구간 | 👀 **관찰 대상** |
+                | > 2σ | 진입 신호 | 🚀 **진입 신호** |
+                | > 3σ | 극단적 괴리 | ⚠️ 리스크 주의 |
                 """)
         
         st.markdown("---")
         
         # 핵심 요약
         st.success("""
-        ### 🎯 핵심 전략
-        **거리가 가장 작은 = 가격 경로가 가장 비슷한** 자산쌍들이 일시적으로 벌어질 때 수렴을 노리는 전략
+        ### 🎯 SSD 방법론의 핵심 전략
+        **"실무 트레이더들이 말하는 '둘이 함께 움직인다'를 수치화한 것이 SSD"**
         
-        **✅ 장점**
-        - 계산 속도 빠름
-        - 직관적 이해 가능  
-        - 강력한 평균회귀 신호 포착
+        **✅ 학술적 검증된 장점**
+        - Gatev et al. (2006) 논문으로 학술적 근거 확보
+        - Wall Street 실제 트레이딩 룸에서 사용되는 방법론
+        - 누적수익률 기반으로 더 정교한 유사성 측정
+        - 12개월 형성기간으로 안정적 관계 파악
         """)
         
         st.markdown("---")
         
-        # 유클리드 거리 시각화
+        # SSD 방법론 비교
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("#### 📏 유클리드 거리 계산 예시")
-            st.latex(r"""
-            d(A, B) = \sqrt{\sum_{i=1}^{n} (P_A^i - P_B^i)^2}
-            """)
-            st.caption("""
-            - PA, PB: 정규화된 가격 (첫날=1.0)
-            - n: 관찰 기간 (예: 756일)
-            - d: 유클리드 거리 (낮을수록 유사)
+            st.markdown("#### 📊 SSD vs 유클리드 거리")
+            st.markdown("""
+            | 구분 | SSD | 유클리드 |
+            |------|-----|----------|
+            | 기준 | 누적수익률 | 정규화 가격 |
+            | 계산 | 제곱편차 합 | 기하학적 거리 |
+            | 특징 | 수익률 중심 | 가격 경로 중심 |
+            | 장점 | 실무적, 학술적 | 직관적, 빠름 |
             """)
         
         with col2:
-            st.markdown("#### 📈 거리에 따른 페어 품질")
+            st.markdown("#### 🎯 실무 활용 가이드")
             st.markdown("""
-            | 거리 범위 | 해석 | 적합성 |
-            |---------|------|--------|
-            | 0 ~ 5 | 매우 유사 | ⭐⭐⭐ 최우선 |
-            | 5 ~ 10 | 유사 | ⭐⭐ 양호 |
-            | 10 ~ 20 | 보통 | ⭐ 고려 가능 |
-            | > 20 | 상이 | ❌ 부적합 |
+            **페어 선정 기준**:
+            - SSD < 0.3: 우선 고려 대상
+            - Half-Life 5-30일: 이상적 범위  
+            - 2σ 트리거: 논문 검증된 기준
+            
+            **리스크 관리**:
+            - 3σ 이상: 극단적 상황 주의
+            - Stop-loss: 일반적으로 3σ 설정
+            - 포지션 크기: 변동성 고려 조정
             """)
     
     with tab3:
         st.info("""
-        ### 유클리드 거리 기반 페어 선정 방법론
+        ### SSD (Sum of Squared Deviations) 거리 기반 페어 선정 방법론
         
-        **핵심 원리**: 가격 움직임의 경로가 가장 유사한 자산들을 페어로 선정하여 평균회귀를 노리는 전략
+        **핵심 원리**: Gatev et al. (2006) "Pairs Trading: Performance of a Relative-Value Arbitrage Rule" 논문에서 제시된 월스트리트 실무 방법론을 학술적으로 구현
         
         **상세 작동 과정**:
-        1. **가격 정규화**: 최근 3년(756일) 데이터를 첫 거래일 = 1.0으로 리베이싱 → 절대 가격차이 제거, 상대적 움직임만 비교
-        2. **유클리드 거리 계산**: 모든 자산 쌍에 대해 정규화된 가격 경로 간 유클리드 거리 측정  
-           - 거리 공식: √Σ(Asset1ᵢ - Asset2ᵢ)² 
-        3. **거리 기준 스크리닝**: **거리값이 가장 낮은 순서로 정렬** → 가장 비슷한 움직임을 보인 페어들을 우선 선택
-        4. **품질 필터링**: 
-           - **Half-Life**: 5~60일 범위 (평균회귀 속도 검증)
-             * 정의: 스프레드가 현재값에서 평균값으로 절반만큼 수렴하는데 걸리는 시간
-             * 계산: AR(1) 모델로 HL = -ln(2)/ln(φ), φ는 자기회귀 계수
-             * 해석: 5 ~ 15일=단기 수익형, 15 ~ 30일=우수한 페어, 30 ~ 60일=중장기형
-           - **Z-Score 계산**: 60일 롤링 윈도우로 가격 괴리 신호 생성 (적절한 통계적 유의성 확보)
+        1. **형성 기간 설정**: 12개월(252일) 데이터로 페어 선정 - 논문의 표준 방법론
+        2. **누적수익률 계산**: 각 자산의 cumulative total return index 계산 (배당재투자 가정)
+        3. **SSD 계산**: 정규화된 두 가격시계열 간 제곱편차 합 계산
+           - SSD = Σ(Normalized_Price1ᵢ - Normalized_Price2ᵢ)²
+        4. **최적 페어 매칭**: 각 종목에 대해 SSD가 최소가 되는 상대 종목을 찾아 페어 구성
+        5. **트리거 조건**: 형성기간 스프레드 표준편차(σ) 기준으로 2σ 이상 벗어나면 진입
         
-        **핵심**: 거리가 **가장 작은 = 가격 경로가 가장 비슷한** 자산쌍들이 일시적으로 벌어질 때 수렴을 노리는 전략
+        **학술적 근거**: 
+        - "실무 트레이더들이 말하는 '둘이 함께 움직인다(move together)'를 수치화한 것이 SSD"
+        - 실제 실무 관행을 가장 잘 근사하는 방법으로 논문에서 검증됨
+        - Wall Street에서 실제 사용되는 페어트레이딩 전략의 학술적 구현
         
-        **장점**: 계산 속도 빠름, 직관적 이해 가능, 강력한 평균회귀 신호 포착
+        **유클리드 거리와의 차이점**:
+        - **유클리드**: 단순 가격 경로의 기하학적 거리
+        - **SSD**: 누적수익률 기반 제곱편차 합 → 더 정교하고 실무적
+        
+        **핵심**: SSD 값이 낮을수록 두 자산이 더 유사하게 움직이며, 2σ 이상 벗어나면 평균회귀 기회
+        
+        **장점**: 학술적 검증, 실무 검증, 수익률 기반 매칭, 월스트리트 실전 경험 반영
         """)
     
     with tab4:
@@ -796,22 +838,22 @@ def main():
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("#### 1️⃣ 가격 정규화 (Rebasing)")
-            st.latex(r"P_{norm}^t = \frac{P^t}{P^0}")
-            st.caption("모든 자산의 시작점을 1.0으로 통일")
+            st.markdown("#### 1️⃣ 누적수익률 계산")
+            st.latex(r"CumReturn_t = \prod_{i=1}^{t} (1 + r_i)")
+            st.caption("첫날을 1.0으로 정규화하여 상대적 성과 비교")
             
-            st.markdown("#### 2️⃣ 유클리드 거리")
-            st.latex(r"d_{AB} = \sqrt{\sum_{t=1}^{T} (P_A^t - P_B^t)^2}")
-            st.caption("T기간 동안의 가격 경로 차이")
+            st.markdown("#### 2️⃣ SSD 거리")
+            st.latex(r"SSD_{AB} = \sum_{t=1}^{T} (P_A^{norm}(t) - P_B^{norm}(t))^2")
+            st.caption("T=252일 동안의 정규화된 가격 차이의 제곱합")
         
         with col2:
             st.markdown("#### 3️⃣ 스프레드 계산")
-            st.latex(r"S_t = P_A^t - \beta \cdot P_B^t")
-            st.caption("β는 OLS 회귀로 추정한 헤지비율")
+            st.latex(r"Spread_t = P_A^{norm}(t) - P_B^{norm}(t)")
+            st.caption("정규화된 누적수익률의 차이")
             
-            st.markdown("#### 4️⃣ Z-Score 신호")
-            st.latex(r"Z_t = \frac{S_t - \mu_S}{\sigma_S}")
-            st.caption("μ: 평균, σ: 표준편차 (롤링 윈도우)")
+            st.markdown("#### 4️⃣ 표준화된 편차")
+            st.latex(r"Z_t = \frac{Spread_t - \mu_{spread}}{\sigma_{spread}}")
+            st.caption("형성기간 기준 표준화 (μ: 평균, σ: 표준편차)")
         
         st.markdown("---")
         
@@ -822,30 +864,39 @@ def main():
         
         with example_col1:
             st.code("""
-# 1. 정규화
-asset_A = [100, 105, 110, 108]
-asset_B = [50, 52, 54, 53]
+# 1. 누적수익률 계산
+returns_A = [0.01, 0.02, -0.005, 0.015]
+returns_B = [0.008, 0.018, -0.002, 0.012]
 
-norm_A = [1.00, 1.05, 1.10, 1.08]
-norm_B = [1.00, 1.04, 1.08, 1.06]
+# 누적수익률 (1일차 = 1.0)
+cum_A = [1.0]
+cum_B = [1.0]
 
-# 2. 거리 계산
-differences = [0, 0.01, 0.02, 0.02]
-squared = [0, 0.0001, 0.0004, 0.0004]
-distance = sqrt(0.0009) = 0.03
+for r_a, r_b in zip(returns_A, returns_B):
+    cum_A.append(cum_A[-1] * (1 + r_a))
+    cum_B.append(cum_B[-1] * (1 + r_b))
+
+# 2. SSD 계산
+differences = [a - b for a, b in zip(cum_A, cum_B)]
+ssd = sum(d**2 for d in differences)
             """, language='python')
         
         with example_col2:
             st.markdown("""
             **해석**:
-            - 거리 0.03은 매우 낮음
-            - 두 자산의 움직임이 거의 동일
-            - 페어트레이딩에 적합한 후보
+            - SSD 값이 낮을수록 두 자산 유사
+            - 형성기간 동안의 전체적 관계 파악
+            - 단순 상관관계보다 더 정교한 측정
             
-            **다음 단계**:
-            1. Half-Life 계산 (5-60일 확인)
-            2. 거래비용 대비 수익성 검증
-            3. Z-Score 모니터링 시작
+            **트리거 계산**:
+            1. 형성기간 스프레드의 평균/표준편차 계산
+            2. 현재 스프레드를 표준화
+            3. ±2σ 벗어나면 진입 신호 발생
+            
+            **실무 적용**:
+            - 12개월 형성기간으로 SSD 계산
+            - 매일 새로운 편차 모니터링
+            - 2σ 트리거로 진입/청산 결정
             """)
 
 # Streamlit 페이지로 실행

@@ -1,5 +1,5 @@
 """
-페어트레이딩 분석 도구 - 상관관계 레짐 전환 기반 방법론
+Pair Trading Analysis Tool - Correlation Regime Switching Methodology
 """
 import streamlit as st
 import pandas as pd
@@ -43,7 +43,7 @@ CorrelationRegimePairTrading = regime_module.CorrelationRegimePairTrading
 
 # 페이지 설정
 st.set_page_config(
-    page_title="상관관계 레짐 방법론",
+    page_title="Correlation Regime Methodology",
     page_icon="🔄",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -342,12 +342,12 @@ def check_parameters_default(params):
 
 # 메인 앱
 def main():
-    st.title("상관관계 레짐 전환 기반 페어트레이딩")
+    st.title("Correlation Regime Switching Pair Trading")
     st.markdown("---")
     
     # 사이드바 설정
-    st.sidebar.header("분석 설정")
-    st.sidebar.markdown("### 기간 설정")
+    st.sidebar.header("Analysis Settings")
+    st.sidebar.markdown("### Period Settings")
     
     formation_window = st.sidebar.slider(
         "Formation Window (일)",

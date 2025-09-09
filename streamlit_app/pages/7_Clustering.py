@@ -1,5 +1,5 @@
 """
-페어트레이딩 분석 도구 - 클러스터링 기반 방법론
+Pair Trading Analysis Tool - Clustering Methodology
 """
 import streamlit as st
 import pandas as pd
@@ -45,7 +45,7 @@ ClusteringPairTrading = clustering_module.ClusteringPairTrading
 
 # 페이지 설정
 st.set_page_config(
-    page_title="클러스터링 방법론",
+    page_title="Clustering Methodology",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -175,7 +175,7 @@ def create_cluster_visualization(prices, trader, formation_days):
     return fig
 
 def create_pair_chart(prices, asset1, asset2, formation_days, signal_days, asset_mapping=None):
-    """페어 차트 생성 (클러스터링 방법론에 맞게 조정)"""
+    """페어 차트 생성 (Clustering Methodology에 맞게 조정)"""
     # 전체 기간 데이터
     end_date = prices.index[-1]
     start_date = end_date - timedelta(days=int(formation_days * 1.4))
@@ -325,7 +325,7 @@ def create_pair_chart(prices, asset1, asset2, formation_days, signal_days, asset
 
 # 메인 앱
 def main():
-    st.title("🧠 클러스터링 기반 페어트레이딩")
+    st.title("🧠 Clustering Pair Trading")
     st.markdown("---")
     
     # 4개 탭 구성
@@ -550,7 +550,7 @@ def main():
     
     # TAB 2: 📊 상세 작동 과정
     with tab2:
-        st.header("클러스터링 기반 페어트레이딩 작동 과정")
+        st.header("Clustering Pair Trading 작동 과정")
         
         # STEP 1
         col1, col2 = st.columns([1, 2])
@@ -622,7 +622,7 @@ def main():
         
         # 마무리 요소
         st.success("""
-        **🎯 클러스터링 방법론의 핵심 전략**
+        **🎯 Clustering Methodology의 핵심 전략**
         
         단순한 가격 유사성을 넘어 **펀더멘털 특성의 유사성**까지 고려하여 보다 안정적이고 
         예측 가능한 페어를 발굴하는 지능형 접근법입니다.

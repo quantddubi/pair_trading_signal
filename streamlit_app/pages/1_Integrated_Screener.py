@@ -1,5 +1,5 @@
 """
-페어트레이딩 분석 도구 - 통합 스크리너 (캐시 적용)
+Pair Trading Analysis Tool - Integrated Screener (Cache Applied)
 """
 import streamlit as st
 import pandas as pd
@@ -41,29 +41,29 @@ calculate_zscore = common_utils.calculate_zscore
 
 # 페이지 설정
 st.set_page_config(
-    page_title="통합 스크리너",
+    page_title="Integrated Screener",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-st.title("📊 통합 페어트레이딩 스크리너")
+st.title("📊 Integrated Pair Trading Screener")
 st.markdown("---")
 
 def get_asset_categories():
-    """자산을 카테고리별로 분류"""
+    """Classify assets by categories"""
     return {
-        '주요 주식지수': ['SPX Index', 'RTY Index', 'NDX Index', 'INDU Index', 'MXWD Index', 'MXWO Index', 'MXEA Index'],
-        '미국 섹터': ['S5FINL Index', 'S5INFT Index', 'S5HLTH Index', 'S5TELS Index', 'S5INDU Index', 'S5COND Index', 'S5CONS Index', 'S5ENRS Index', 'S5MATR Index', 'S5RLST Index', 'S5UTIL Index'],
-        '유럽/아시아 주식': ['SX5E Index', 'SXXP Index', 'UKX Index', 'NKY Index', 'TPX Index', 'DAX Index', 'CAC Index', 'AEX Index', 'FTSEMIB Index', 'IBEX Index'],
-        '신흥국 주식': ['MXEF Index', 'XIN9I Index', 'HSI Index', 'KOSPI Index', 'TWSE Index', 'SENSEX Index', 'MXLA Index'],
-        '채권': ['WN1 Comdty', 'UXY1 Comdty', 'TY1 Comdty', 'FV1 Comdty', 'TU1 Comdty', 'CN1 Comdty', 'UB1 Comdty', 'RX1 Comdty', 'OE1 Comdty', 'DU1 Comdty', 'OAT1 Comdty', 'G 1 Comdty'],
-        '채권지수': ['LEGATRUH Index', 'LGTRTRUH Index', 'H03454US Index', 'H03450US Index', 'LGCPTRUH Index', 'LG30TRUH Index', 'LG20TRUH Index', 'LUATTRUU Index'],
-        '주요 통화': ['EURUSD Curncy', 'JPYUSD Curncy', 'GBPUSD Curncy', 'CHFUSD Curncy', 'AD1 Curncy', 'CADUSD Curncy'],
-        '신흥국 통화': ['CNYUSD Curncy', 'BRLUSD Curncy', 'MXNUSD Curncy', 'KRWUSD Curncy', 'SEKUSD Curncy', 'NZDUSD Curncy'],
-        '원자재': ['CL1 Comdty', 'HG1 Comdty', 'NG1 Comdty', 'GC1 Comdty', 'SI1 Comdty', 'PL1 Comdty', 'SCO1 Comdty', 'PA1 Comdty'],
-        '농산물': ['C 1 Comdty', 'W 1 Comdty', 'S 1 Comdty'],
-        '기타': ['VIX Index']
+        'Major Stock Indices': ['SPX Index', 'RTY Index', 'NDX Index', 'INDU Index', 'MXWD Index', 'MXWO Index', 'MXEA Index'],
+        'US Sectors': ['S5FINL Index', 'S5INFT Index', 'S5HLTH Index', 'S5TELS Index', 'S5INDU Index', 'S5COND Index', 'S5CONS Index', 'S5ENRS Index', 'S5MATR Index', 'S5RLST Index', 'S5UTIL Index'],
+        'Europe/Asia Stocks': ['SX5E Index', 'SXXP Index', 'UKX Index', 'NKY Index', 'TPX Index', 'DAX Index', 'CAC Index', 'AEX Index', 'FTSEMIB Index', 'IBEX Index'],
+        'Emerging Market Stocks': ['MXEF Index', 'XIN9I Index', 'HSI Index', 'KOSPI Index', 'TWSE Index', 'SENSEX Index', 'MXLA Index'],
+        'Bonds': ['WN1 Comdty', 'UXY1 Comdty', 'TY1 Comdty', 'FV1 Comdty', 'TU1 Comdty', 'CN1 Comdty', 'UB1 Comdty', 'RX1 Comdty', 'OE1 Comdty', 'DU1 Comdty', 'OAT1 Comdty', 'G 1 Comdty'],
+        'Bond Indices': ['LEGATRUH Index', 'LGTRTRUH Index', 'H03454US Index', 'H03450US Index', 'LGCPTRUH Index', 'LG30TRUH Index', 'LG20TRUH Index', 'LUATTRUU Index'],
+        'Major Currencies': ['EURUSD Curncy', 'JPYUSD Curncy', 'GBPUSD Curncy', 'CHFUSD Curncy', 'AD1 Curncy', 'CADUSD Curncy'],
+        'Emerging Currencies': ['CNYUSD Curncy', 'BRLUSD Curncy', 'MXNUSD Curncy', 'KRWUSD Curncy', 'SEKUSD Curncy', 'NZDUSD Curncy'],
+        'Commodities': ['CL1 Comdty', 'HG1 Comdty', 'NG1 Comdty', 'GC1 Comdty', 'SI1 Comdty', 'PL1 Comdty', 'SCO1 Comdty', 'PA1 Comdty'],
+        'Agriculture': ['C 1 Comdty', 'W 1 Comdty', 'S 1 Comdty'],
+        'Others': ['VIX Index']
     }
 
 def create_correlation_matrix_with_pairs(prices, all_pairs_by_method, asset_mapping, selected_category='전체', category_assets=None, time_period='3년'):
@@ -482,10 +482,10 @@ def main():
         st.warning("⚠️ SSD 거리 방법론의 캐시가 없습니다. `python generate_cache.py`를 실행하여 전체 캐시를 생성하세요.")
     
     # 캐시 상태 표시
-    st.subheader("방법론별 캐시 상태")
+    st.subheader("Cache Status by Methodology")
     cols = st.columns(7)
     methods = ['euclidean', 'ssd', 'cointegration', 'regime', 'ou', 'clustering', 'copula']
-    method_names = ['유클리드 거리', 'SSD 거리', '공적분', '상관관계 레짐', 'OU 평균회귀', '클러스터링', '코퓰라 순위상관']
+    method_names = ['Euclidean Distance', 'SSD Distance', 'Cointegration', 'Correlation Regime', 'OU Mean Reversion', 'Clustering', 'Copula Rank Correlation']
     method_icons = ['📐', '📊', '🔗', '📈', '🔄', '🧠', '🎲']
     
     for i, (method, name, icon) in enumerate(zip(methods, method_names, method_icons)):
@@ -493,8 +493,8 @@ def main():
             if cache_info.get(method, {}).get('exists', False):
                 st.success(f"✅ {icon} {name}")
                 info = cache_info[method]
-                st.caption(f"진입: {info['enter_count']}개")
-                st.caption(f"관찰: {info['watch_count']}개")
+                st.caption(f"Entry: {info['enter_count']}")
+                st.caption(f"Watch: {info['watch_count']}")
             else:
                 st.error(f"❌ {icon} {name}")
     

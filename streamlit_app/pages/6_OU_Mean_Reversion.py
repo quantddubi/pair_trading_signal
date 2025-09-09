@@ -371,7 +371,7 @@ def main():
     st.markdown("---")
     
     # 사이드바 설정 (TAB 1에서만 활성화)
-    st.sidebar.header("분석 설정")
+    st.sidebar.header("Analysis Settings")
     st.sidebar.markdown("### 기간 설정")
     
     formation_window = st.sidebar.slider(
@@ -497,7 +497,7 @@ def main():
     )
     
     # 분석 실행 버튼
-    if st.sidebar.button("분석 실행", type="primary"):
+    if st.sidebar.button("Run Analysis", type="primary"):
         st.cache_data.clear()  # 캐시 클리어
     
     # 파라미터 딕셔너리
@@ -569,10 +569,10 @@ def main():
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("진입 신호", f"{len(enter_list)}개", help="Z-스코어 임계값 이상의 페어")
+            st.metric("Entry Signals", f"{len(enter_list)}개", help="Z-스코어 임계값 이상의 페어")
         
         with col2:
-            st.metric("관찰 대상", f"{len(watch_list)}개", help="진입 직전 단계의 페어")
+            st.metric("Watch List", f"{len(watch_list)}개", help="진입 직전 단계의 페어")
         
         with col3:
             avg_kappa = np.mean([pair.get('kappa_avg', 0.01) for pair in enter_list + watch_list]) if (enter_list + watch_list) else 0
@@ -632,7 +632,7 @@ def main():
             st.markdown("---")
             
             # 통합 페어 상세 분석 섹션
-            st.subheader("페어 상세 분석")
+            st.subheader("Pair Detail Analysis")
             
             # 최고 추천 페어 표시
             top_pair = enter_list[0]
@@ -755,7 +755,7 @@ def main():
     # TAB 2: 상세 작동 과정
     # =====================================================
     with tab2:
-        st.markdown("### OU 평균회귀 방법론 상세 작동 과정")
+        st.markdown("### OU Mean Reversion Methodology 상세 작동 과정")
         
         # STEP별 작동 과정 (OU 특화)
         st.markdown("#### STEP 1: 스프레드 OU 과정 적합")
@@ -877,7 +877,7 @@ def main():
     # TAB 4: 수식 및 계산
     # =====================================================
     with tab4:
-        st.markdown("### OU 평균회귀 방법론 수식 및 계산")
+        st.markdown("### OU Mean Reversion Methodology 수식 및 계산")
         
         st.markdown("#### 1. OU 확률미분방정식")
         st.latex(r'''

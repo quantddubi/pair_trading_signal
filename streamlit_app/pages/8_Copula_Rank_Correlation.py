@@ -1,5 +1,5 @@
 """
-페어트레이딩 분석 도구 - 코퓰라 순위상관 기반 방법론
+Pair Trading Analysis Tool - Copula Rank Correlation Methodology
 """
 import streamlit as st
 import pandas as pd
@@ -45,7 +45,7 @@ CopulaBasedPairScreening = copula_module.CopulaBasedPairScreening
 
 # 페이지 설정
 st.set_page_config(
-    page_title="코퓰라 순위상관 방법론",
+    page_title="Copula Rank Correlation Methodology",
     page_icon="🎲",
     layout="wide",
     initial_sidebar_state="expanded"

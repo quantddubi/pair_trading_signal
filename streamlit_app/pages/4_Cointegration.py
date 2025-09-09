@@ -45,7 +45,7 @@ CointegrationPairTrading = cointegration_module.CointegrationPairTrading
 
 # 페이지 설정
 st.set_page_config(
-    page_title="공적분 방법론",
+    page_title="Cointegration Methodology",
     page_icon="📈", 
     layout="wide",
     initial_sidebar_state="expanded"
@@ -338,7 +338,7 @@ def create_pair_chart(prices, asset1, asset2, formation_window, signal_window, a
 
 # 메인 앱
 def main():
-    st.title("공적분 기반 페어트레이딩")
+    st.title("Cointegration Pair Trading")
     st.markdown("---")
     
     # 4개 탭 구성 (아이콘 + 명칭 통일)
@@ -351,7 +351,7 @@ def main():
     
     with tab1:
         # 사이드바 설정
-        st.sidebar.header("분석 설정")
+        st.sidebar.header("Analysis Settings")
         st.sidebar.markdown("### 기간 설정")
         
         formation_window = st.sidebar.slider(
@@ -420,7 +420,7 @@ def main():
         )
         
         # 분석 실행 버튼
-        if st.sidebar.button("분석 실행", type="primary"):
+        if st.sidebar.button("Run Analysis", type="primary"):
             st.cache_data.clear()  # 캐시 클리어
         
         # 파라미터 딕셔너리
@@ -481,10 +481,10 @@ def main():
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("진입 신호", f"{len(enter_list)}개", help="Z-스코어 임계값 이상의 공적분 페어")
+            st.metric("Entry Signals", f"{len(enter_list)}개", help="Z-스코어 임계값 이상의 공적분 페어")
         
         with col2:
-            st.metric("관찰 대상", f"{len(watch_list)}개", help="진입 직전 단계의 공적분 페어")
+            st.metric("Watch List", f"{len(watch_list)}개", help="진입 직전 단계의 공적분 페어")
         
         with col3:
             avg_pvalue = np.mean([s.get('p_value', 0.05) for s in enter_list]) if enter_list else 0.05
@@ -583,7 +583,7 @@ def main():
             combined_pairs.append({
                 'display': f"[진입 신호] {formatted_pair}",
                 'pair': signal['pair'],
-                'type': '진입 신호',
+                'type': 'Entry Signals',
                 'signal_data': signal
             })
         
@@ -593,7 +593,7 @@ def main():
             combined_pairs.append({
                 'display': f"[관찰 대상] {formatted_pair}",
                 'pair': signal['pair'],
-                'type': '관찰 대상',
+                'type': 'Watch List',
                 'signal_data': signal
             })
         
@@ -637,7 +637,7 @@ def main():
                     st.metric("반감기", f"{half_life:.1f}일")
                 
                 # 진입 신호인 경우 추가 정보 표시
-                if selected_pair_info['type'] == '진입 신호':
+                if selected_pair_info['type'] == 'Entry Signals':
                     st.markdown("#### 📊 진입 신호 상세 정보")
                     
                     col1, col2, col3 = st.columns(3)
@@ -853,7 +853,7 @@ def main():
         
         # 핵심 요약
         st.success("""
-        ### 🎯 공적분 방법론의 핵심 전략
+        ### 🎯 Cointegration Methodology의 핵심 전략
         **장기 균형관계가 통계적으로 검증된 페어들이 단기적으로 벌어질 때 수렴을 노리는 전략**
         
         **✅ 통계적 근거 확실한 장점**
@@ -865,7 +865,7 @@ def main():
         
         st.markdown("---")
         
-        # 공적분 방법론 비교
+        # Cointegration Methodology 비교
         col1, col2 = st.columns(2)
         
         with col1:
