@@ -623,10 +623,13 @@ def main():
                     "헤지비율": st.column_config.TextColumn("헤지비율", width="small")
                 }
             )
-            
-            st.markdown("---")
-            
-            # 통합 페어 상세 분석 섹션
+        else:
+            st.warning("❌ 현재 진입 조건을 만족하는 페어가 없습니다")
+        
+        st.markdown("---")
+        
+        # 통합 페어 상세 분석 섹션 (진입 페어가 있을 때만 표시)
+        if enter_list:
             st.subheader("Pair Detail Analysis")
             
             # 최고 추천 페어 표시
@@ -739,6 +742,8 @@ def main():
             
             df_watch = pd.DataFrame(table_data)
             st.dataframe(df_watch, use_container_width=True, hide_index=True)
+        else:
+            st.info("현재 관찰 대상 페어가 없습니다")
         
         # 캐시 정보 표시 (기본 파라미터 사용시에만)
         if is_default and 'cache_data' in locals():
