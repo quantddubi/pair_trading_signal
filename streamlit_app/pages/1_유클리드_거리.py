@@ -307,42 +307,155 @@ def main():
     tab1, tab2, tab3 = st.tabs(["📊 방법론 다이어그램", "📝 상세 설명", "🔍 수식 및 계산"])
     
     with tab1:
-        st.markdown("### 유클리드 거리 기반 페어트레이딩 프로세스")
+        st.markdown("### 📊 유클리드 거리 기반 페어트레이딩 프로세스")
         
-        # Mermaid 다이어그램으로 프로세스 플로우 표시
-        st.markdown("""
-        ```mermaid
-        graph TD
-            A[전체 자산 Universe<br/>예: 100개 주식] --> B[가격 데이터 수집<br/>3년 일별 종가]
-            B --> C[가격 정규화<br/>첫날 = 1.0으로 리베이싱]
+        # 프로세스를 단계별로 시각화
+        st.markdown("#### 1️⃣ 데이터 준비 단계")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.info("""
+            **📁 데이터 수집**
+            - 전체 자산 Universe
+            - 100개 주식
+            - 일별 종가 데이터
+            """)
+        
+        with col2:
+            st.success("""
+            **📈 기간 설정**
+            - 형성기간: 3년 (756일)
+            - 신호기간: 60일
+            - 충분한 데이터 확보
+            """)
+        
+        with col3:
+            st.warning("""
+            **🔄 정규화**
+            - 첫날 = 1.0
+            - 상대적 움직임 비교
+            - 절대 가격 차이 제거
+            """)
+        
+        st.markdown("⬇️")
+        
+        st.markdown("#### 2️⃣ 거리 계산 및 스크리닝")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # 거리 계산 시각화
+            import plotly.graph_objects as go
             
-            C --> D[유클리드 거리 계산<br/>모든 자산 쌍 조합]
+            fig = go.Figure()
             
-            D --> E{거리 기준<br/>스크리닝}
+            # 예시 데이터로 거리 분포 히스토그램
+            import numpy as np
+            distances = np.random.gamma(2, 2, 1000)
             
-            E -->|거리 낮음| F[유사 페어 후보군<br/>Top 20%]
-            E -->|거리 높음| G[제외]
+            fig.add_trace(go.Histogram(
+                x=distances,
+                nbinsx=30,
+                name='거리 분포',
+                marker_color='lightblue',
+                showlegend=False
+            ))
             
-            F --> H[품질 필터 적용]
+            # 임계값 라인 추가
+            fig.add_vline(x=5, line_dash="dash", line_color="green", 
+                         annotation_text="우수 (< 5)")
+            fig.add_vline(x=10, line_dash="dash", line_color="orange",
+                         annotation_text="양호 (5-10)")
+            fig.add_vline(x=20, line_dash="dash", line_color="red",
+                         annotation_text="제외 (> 20)")
             
-            H --> I{Half-Life<br/>5-60일?}
-            I -->|Yes| J{거래비용<br/>대비 수익성?}
-            I -->|No| K[제외]
+            fig.update_layout(
+                title="유클리드 거리 분포",
+                xaxis_title="거리",
+                yaxis_title="빈도",
+                height=300,
+                showlegend=False
+            )
             
-            J -->|충분| L[최종 페어 선정<br/>Top 10 페어]
-            J -->|부족| K
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.markdown("##### 📏 거리 계산 공식")
+            st.latex(r"d(A,B) = \sqrt{\sum_{t=1}^{T} (P_A^t - P_B^t)^2}")
             
-            L --> M[Z-Score 모니터링]
-            M --> N{|Z| > 2.0?}
-            
-            N -->|Yes| O[거래 신호 생성<br/>진입/청산]
-            N -->|No| P[대기]
-            
-            style A fill:#e1f5fe
-            style L fill:#c8e6c9
-            style O fill:#ffccbc
-        ```
-        """)
+            st.markdown("##### 🎯 스크리닝 기준")
+            st.markdown("""
+            | 거리 | 선정 기준 | 비율 |
+            |------|---------|------|
+            | 0-5 | ✅ 최우선 | 상위 10% |
+            | 5-10 | ✅ 선정 | 상위 20% |  
+            | 10-20 | ⚠️ 검토 | 상위 50% |
+            | >20 | ❌ 제외 | 하위 50% |
+            """)
+        
+        st.markdown("⬇️")
+        
+        st.markdown("#### 3️⃣ 품질 필터링")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric(
+                label="Half-Life 필터",
+                value="5-60일",
+                delta="평균회귀 속도",
+                help="스프레드가 평균으로 돌아오는 속도"
+            )
+        
+        with col2:
+            st.metric(
+                label="거래비용 필터",
+                value="비용 대비 5배",
+                delta="수익성 검증",
+                help="거래비용 대비 예상 수익"
+            )
+        
+        with col3:
+            st.metric(
+                label="통계적 유의성",
+                value="p-value < 0.05",
+                delta="신뢰도 95%",
+                help="페어 관계의 통계적 유의성"
+            )
+        
+        st.markdown("⬇️")
+        
+        st.markdown("#### 4️⃣ 거래 신호 생성")
+        
+        # Z-Score 시각화
+        fig2 = go.Figure()
+        
+        # 예시 Z-Score 시계열
+        dates = pd.date_range('2024-01-01', periods=100)
+        z_scores = np.cumsum(np.random.randn(100) * 0.3)
+        
+        fig2.add_trace(go.Scatter(
+            x=dates, y=z_scores,
+            mode='lines',
+            name='Z-Score',
+            line=dict(color='blue', width=2)
+        ))
+        
+        # 임계값 영역
+        fig2.add_hrect(y0=2, y1=3, fillcolor="red", opacity=0.2, 
+                      annotation_text="Short 진입")
+        fig2.add_hrect(y0=-3, y1=-2, fillcolor="green", opacity=0.2,
+                      annotation_text="Long 진입")
+        fig2.add_hrect(y0=-0.5, y1=0.5, fillcolor="gray", opacity=0.1,
+                      annotation_text="청산 구간")
+        
+        fig2.update_layout(
+            title="Z-Score 기반 거래 신호",
+            xaxis_title="날짜",
+            yaxis_title="Z-Score",
+            height=250,
+            showlegend=False
+        )
+        
+        st.plotly_chart(fig2, use_container_width=True)
         
         st.markdown("---")
         
