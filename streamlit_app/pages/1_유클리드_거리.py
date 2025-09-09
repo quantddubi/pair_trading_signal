@@ -307,155 +307,127 @@ def main():
     tab1, tab2, tab3 = st.tabs(["📊 방법론 다이어그램", "📝 상세 설명", "🔍 수식 및 계산"])
     
     with tab1:
-        st.markdown("### 📊 유클리드 거리 기반 페어트레이딩 프로세스")
+        st.markdown("### 📊 상세 작동 과정")
         
-        # 프로세스를 단계별로 시각화
-        st.markdown("#### 1️⃣ 데이터 준비 단계")
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.info("""
-            **📁 데이터 수집**
-            - 전체 자산 Universe
-            - 100개 주식
-            - 일별 종가 데이터
-            """)
-        
-        with col2:
-            st.success("""
-            **📈 기간 설정**
-            - 형성기간: 3년 (756일)
-            - 신호기간: 60일
-            - 충분한 데이터 확보
-            """)
-        
-        with col3:
-            st.warning("""
-            **🔄 정규화**
-            - 첫날 = 1.0
-            - 상대적 움직임 비교
-            - 절대 가격 차이 제거
-            """)
-        
-        st.markdown("⬇️")
-        
-        st.markdown("#### 2️⃣ 거리 계산 및 스크리닝")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # 거리 계산 시각화
-            import plotly.graph_objects as go
+        # Step 1: 가격 정규화
+        with st.container():
+            col1, col2 = st.columns([1, 2])
             
-            fig = go.Figure()
+            with col1:
+                st.markdown("### STEP 1")
+                st.info("**🔄 가격 정규화**")
             
-            # 예시 데이터로 거리 분포 히스토그램
-            import numpy as np
-            distances = np.random.gamma(2, 2, 1000)
+            with col2:
+                st.markdown("")
+                st.markdown("")
+                st.markdown("""
+                #### 최근 3년(756일) 데이터를 첫 거래일 = 1.0으로 리베이싱
+                - ✅ 절대 가격차이 제거
+                - ✅ 상대적 움직임만 비교
+                - ✅ 모든 자산 동일 스케일
+                """)
+        
+        st.markdown("---")
+        
+        # Step 2: 유클리드 거리 계산
+        with st.container():
+            col1, col2 = st.columns([1, 2])
             
-            fig.add_trace(go.Histogram(
-                x=distances,
-                nbinsx=30,
-                name='거리 분포',
-                marker_color='lightblue',
-                showlegend=False
-            ))
+            with col1:
+                st.markdown("### STEP 2")
+                st.warning("**📏 유클리드 거리 계산**")
             
-            # 임계값 라인 추가
-            fig.add_vline(x=5, line_dash="dash", line_color="green", 
-                         annotation_text="우수 (< 5)")
-            fig.add_vline(x=10, line_dash="dash", line_color="orange",
-                         annotation_text="양호 (5-10)")
-            fig.add_vline(x=20, line_dash="dash", line_color="red",
-                         annotation_text="제외 (> 20)")
+            with col2:
+                st.markdown("")
+                st.markdown("")
+                st.markdown("""
+                #### 모든 자산 쌍에 대해 정규화된 가격 경로 간 유클리드 거리 측정
+                """)
+                st.latex(r"d = \sqrt{\sum_{i=1}^{n} (Asset1_i - Asset2_i)^2}")
+                st.caption("n = 756일 (3년), 거리가 낮을수록 유사한 움직임")
+        
+        st.markdown("---")
+        
+        # Step 3: 거리 기준 스크리닝
+        with st.container():
+            col1, col2 = st.columns([1, 2])
             
-            fig.update_layout(
-                title="유클리드 거리 분포",
-                xaxis_title="거리",
-                yaxis_title="빈도",
-                height=300,
-                showlegend=False
-            )
+            with col1:
+                st.markdown("### STEP 3")
+                st.success("**🎯 거리 기준 스크리닝**")
             
-            st.plotly_chart(fig, use_container_width=True)
+            with col2:
+                st.markdown("")
+                st.markdown("")
+                st.markdown("""
+                #### 거리값이 가장 낮은 순서로 정렬
+                """)
+                
+                # 거리 기준 테이블
+                st.markdown("""
+                | 순위 | 페어 예시 | 거리 | 결과 |
+                |------|-----------|------|------|
+                | 1 | A-B | 2.3 | ✅ **선정** |
+                | 2 | C-D | 3.7 | ✅ **선정** |
+                | 3 | E-F | 5.2 | ✅ **선정** |
+                | ... | ... | ... | ... |
+                | 50 | Y-Z | 25.8 | ❌ 제외 |
+                """)
+                st.caption("💡 가장 비슷한 움직임을 보인 페어들을 우선 선택")
         
-        with col2:
-            st.markdown("##### 📏 거리 계산 공식")
-            st.latex(r"d(A,B) = \sqrt{\sum_{t=1}^{T} (P_A^t - P_B^t)^2}")
+        st.markdown("---")
+        
+        # Step 4: 품질 필터링
+        with st.container():
+            col1, col2 = st.columns([1, 2])
             
-            st.markdown("##### 🎯 스크리닝 기준")
-            st.markdown("""
-            | 거리 | 선정 기준 | 비율 |
-            |------|---------|------|
-            | 0-5 | ✅ 최우선 | 상위 10% |
-            | 5-10 | ✅ 선정 | 상위 20% |  
-            | 10-20 | ⚠️ 검토 | 상위 50% |
-            | >20 | ❌ 제외 | 하위 50% |
-            """)
+            with col1:
+                st.markdown("### STEP 4")
+                st.error("**🔍 품질 필터링**")
+            
+            with col2:
+                st.markdown("")
+                st.markdown("")
+                
+                # 두 개의 서브 컬럼으로 필터 표시
+                subcol1, subcol2 = st.columns(2)
+                
+                with subcol1:
+                    st.markdown("""
+                    #### Half-Life 검증
+                    - **정의**: 스프레드가 평균으로 절반 수렴하는 시간
+                    - **계산**: AR(1) 모델 → HL = -ln(2)/ln(φ)
+                    - **기준**: 5~60일 범위
+                    """)
+                
+                with subcol2:
+                    st.markdown("""
+                    #### Half-Life 해석
+                    - 5~15일: 단기 수익형 ⚡
+                    - 15~30일: 우수한 페어 ⭐
+                    - 30~60일: 중장기형 🕐
+                    - >60일: 제외 ❌
+                    """)
+                
+                st.markdown("""
+                #### Z-Score 계산
+                - **윈도우**: 60일 롤링
+                - **목적**: 가격 괴리 신호 생성
+                - **기준**: 적절한 통계적 유의성 확보
+                """)
         
-        st.markdown("⬇️")
+        st.markdown("---")
         
-        st.markdown("#### 3️⃣ 품질 필터링")
-        col1, col2, col3 = st.columns(3)
+        # 핵심 요약
+        st.success("""
+        ### 🎯 핵심 전략
+        **거리가 가장 작은 = 가격 경로가 가장 비슷한** 자산쌍들이 일시적으로 벌어질 때 수렴을 노리는 전략
         
-        with col1:
-            st.metric(
-                label="Half-Life 필터",
-                value="5-60일",
-                delta="평균회귀 속도",
-                help="스프레드가 평균으로 돌아오는 속도"
-            )
-        
-        with col2:
-            st.metric(
-                label="거래비용 필터",
-                value="비용 대비 5배",
-                delta="수익성 검증",
-                help="거래비용 대비 예상 수익"
-            )
-        
-        with col3:
-            st.metric(
-                label="통계적 유의성",
-                value="p-value < 0.05",
-                delta="신뢰도 95%",
-                help="페어 관계의 통계적 유의성"
-            )
-        
-        st.markdown("⬇️")
-        
-        st.markdown("#### 4️⃣ 거래 신호 생성")
-        
-        # Z-Score 시각화
-        fig2 = go.Figure()
-        
-        # 예시 Z-Score 시계열
-        dates = pd.date_range('2024-01-01', periods=100)
-        z_scores = np.cumsum(np.random.randn(100) * 0.3)
-        
-        fig2.add_trace(go.Scatter(
-            x=dates, y=z_scores,
-            mode='lines',
-            name='Z-Score',
-            line=dict(color='blue', width=2)
-        ))
-        
-        # 임계값 영역
-        fig2.add_hrect(y0=2, y1=3, fillcolor="red", opacity=0.2, 
-                      annotation_text="Short 진입")
-        fig2.add_hrect(y0=-3, y1=-2, fillcolor="green", opacity=0.2,
-                      annotation_text="Long 진입")
-        fig2.add_hrect(y0=-0.5, y1=0.5, fillcolor="gray", opacity=0.1,
-                      annotation_text="청산 구간")
-        
-        fig2.update_layout(
-            title="Z-Score 기반 거래 신호",
-            xaxis_title="날짜",
-            yaxis_title="Z-Score",
-            height=250,
-            showlegend=False
-        )
-        
-        st.plotly_chart(fig2, use_container_width=True)
+        **✅ 장점**
+        - 계산 속도 빠름
+        - 직관적 이해 가능  
+        - 강력한 평균회귀 신호 포착
+        """)
         
         st.markdown("---")
         
