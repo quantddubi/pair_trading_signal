@@ -66,11 +66,11 @@ calculate_hedge_ratio_ols = common_utils.calculate_hedge_ratio_ols
 
 class CopulaBasedPairScreening:
     def __init__(self, formation_window: int = 252, 
-                 min_tail_dependence: float = 0.001,
-                 conditional_prob_threshold: float = 0.4,
-                 min_kendall_tau: float = 0.01,
-                 min_data_coverage: float = 0.6,
-                 copula_consistency_threshold: float = 0.3):
+                 min_tail_dependence: float = 0.4,
+                 conditional_prob_threshold: float = 0.75,
+                 min_kendall_tau: float = 0.5,
+                 min_data_coverage: float = 0.8,
+                 copula_consistency_threshold: float = 0.7):
         """
         실시간 페어 스크리닝 중심 코퓰라 방법론 (매우 관대한 설정)
         
@@ -867,7 +867,7 @@ class CopulaBasedPairScreening:
         # 신호 강도 순으로 정렬
         screened_pairs.sort(key=lambda x: x['signal_strength'], reverse=True)
         
-        # 자산 중복 방지
+        # 자산 중복 방지하여 페어 선택
         selected_pairs = []
         used_assets = set()
         
@@ -940,7 +940,7 @@ class CopulaBasedPairScreening:
             (enter_signals, watch_signals): 진입 신호와 관찰 대상
         """
         # 페어 선별
-        selected_pairs = self.select_pairs(prices, n_pairs * 2)
+        selected_pairs = self.select_pairs(prices, n_pairs)
         
         enter_signals = []
         watch_signals = []
