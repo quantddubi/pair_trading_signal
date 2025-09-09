@@ -85,7 +85,7 @@ st.markdown("""
 @st.cache_data(ttl=3600)
 def load_price_data():
     """가격 데이터 로딩"""
-    data_path = get_data_file_path('MU Price(BBG).csv')
+    data_path = get_data_file_path()
     prices = pd.read_csv(data_path, index_col='Date', parse_dates=True)
     return prices
 
