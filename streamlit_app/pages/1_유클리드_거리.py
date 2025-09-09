@@ -304,7 +304,7 @@ def main():
     st.markdown("---")
     
     # 방법론 개요를 탭으로 구성
-    tab1, tab2, tab3, tab4 = st.tabs(["📈 분석 결과 요약", "📊 방법론 다이어그램", "📝 상세 설명", "🔍 수식 및 계산"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📈 분석 결과 요약", "📊 상세 작동 과정", "📝 상세 설명", "🔍 수식 및 계산"])
     
     with tab1:
         # 사이드바 설정을 먼저 가져와서 분석 결과를 표시
@@ -490,6 +490,132 @@ def main():
                     "상태": st.column_config.TextColumn("상태", width="small")
                 }
             )
+        
+        # 페어 상세 분석 섹션
+        st.markdown("---")
+        st.header("🔍 페어 상세 분석")
+        
+        # 진입 신호와 관찰 대상을 합쳐서 선택 리스트 생성
+        combined_pairs = []
+        
+        # 진입 신호 페어 추가
+        for signal in enter_list:
+            formatted_pair = format_pair_name(signal['pair'], asset_mapping)
+            combined_pairs.append({
+                'display': f"[진입 신호] {formatted_pair}",
+                'pair': signal['pair'],
+                'type': '진입 신호',
+                'signal_data': signal
+            })
+        
+        # 관찰 대상 페어 추가
+        for signal in watch_list:
+            formatted_pair = format_pair_name(signal['pair'], asset_mapping)
+            combined_pairs.append({
+                'display': f"[관찰 대상] {formatted_pair}",
+                'pair': signal['pair'],
+                'type': '관찰 대상',
+                'signal_data': signal
+            })
+        
+        if combined_pairs:
+            # 페어 선택
+            selected_pair_display = st.selectbox(
+                "분석할 페어 선택:",
+                options=[pair['display'] for pair in combined_pairs],
+                help="진입 신호 페어와 관찰 대상 페어 중에서 선택하여 상세 분석"
+            )
+            
+            # 선택된 페어 정보 찾기
+            selected_pair_info = None
+            for pair_info in combined_pairs:
+                if pair_info['display'] == selected_pair_display:
+                    selected_pair_info = pair_info
+                    break
+            
+            if selected_pair_info:
+                # 페어 정보 표시
+                pair_name = selected_pair_info['pair']
+                asset1, asset2 = pair_name.split('-')
+                signal_data = selected_pair_info['signal_data']
+                
+                # 상세 정보 표시
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric("페어 타입", selected_pair_info['type'])
+                
+                with col2:
+                    current_zscore = signal_data.get('current_zscore', 0)
+                    st.metric("현재 Z-Score", f"{current_zscore:.2f}")
+                
+                with col3:
+                    distance = signal_data.get('distance', 0)
+                    st.metric("유클리드 거리", f"{distance:.2f}")
+                
+                with col4:
+                    half_life = signal_data.get('half_life', 50)
+                    st.metric("반감기", f"{half_life:.1f}일")
+                
+                # 진입 신호인 경우 추가 정보 표시
+                if selected_pair_info['type'] == '진입 신호':
+                    st.markdown("#### 📊 진입 신호 상세 정보")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        direction = signal_data.get('direction', 'N/A')
+                        st.info(f"**진입 방향**: {direction}")
+                    
+                    with col2:
+                        hedge_ratio = signal_data.get('hedge_ratio', 1.0)
+                        st.info(f"**헤지 비율**: {hedge_ratio:.4f}")
+                    
+                    with col3:
+                        quality_score = signal_data.get('quality_score', 0.0)
+                        st.info(f"**품질 점수**: {quality_score:.1f}")
+                
+                # 차트 생성 및 표시
+                st.markdown("#### 📈 페어 차트 분석")
+                
+                try:
+                    chart = create_pair_chart(
+                        prices, asset1, asset2, 
+                        formation_days, signal_days, 
+                        asset_mapping
+                    )
+                    
+                    if chart:
+                        st.plotly_chart(chart, use_container_width=True)
+                        
+                        # 차트 해석 도움말
+                        with st.expander("📖 차트 해석 가이드"):
+                            st.markdown("""
+                            **📊 차트 구성**:
+                            - **상단**: 정규화된 가격 비교 (두 자산의 상대적 움직임)
+                            - **중단**: 스프레드 (Asset1 - Asset2의 차이)
+                            - **하단**: Z-Score (표준화된 스프레드 신호)
+                            
+                            **🎯 거래 신호 해석**:
+                            - **Z-Score > +2.0**: Asset1 매도, Asset2 매수 신호
+                            - **Z-Score < -2.0**: Asset1 매수, Asset2 매도 신호
+                            - **Z-Score → 0**: 포지션 청산 신호
+                            
+                            **📅 기간 구분**:
+                            - **노란색 배경**: 최근 6개월 (거래 집중 분석 구간)
+                            - **전체 구간**: 과거 패턴 참고용
+                            
+                            **⚠️ 주의사항**:
+                            - Half-Life가 짧을수록 빠른 수렴 예상
+                            - 거래비용을 고려한 실제 진입/청산 결정 필요
+                            """)
+                    else:
+                        st.error("차트 생성 중 오류가 발생했습니다.")
+                        
+                except Exception as e:
+                    st.error(f"차트 생성 오류: {str(e)}")
+        else:
+            st.warning("분석할 페어가 없습니다. 파라미터를 조정하여 다시 실행해보세요.")
 
     with tab2:
         st.markdown("### 📊 상세 작동 과정")
