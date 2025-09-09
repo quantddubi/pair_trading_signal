@@ -519,18 +519,19 @@ def main():
     # 기본값 여부 확인
     is_default = check_parameters_default(params)
     
-    # 메인 콘텐츠
-    with st.spinner("OU 평균회귀 페어 분석 중... 잠시만 기다려주세요."):
-        try:
-            # 기본값인지 확인하고 캐시 우선 사용
-            cache_data = cache_utils.load_cache('ou')
-            if cache_data and cache_utils.parameters_match_default('ou', params):
-                st.info("📋 캐시된 결과를 사용합니다 (통합 스크리너와 동일)")
-                enter_list = cache_data.get('enter_signals', [])
-                watch_list = cache_data.get('watch_signals', [])
-                prices = load_price_data()
-            else:
-                st.info("🔄 사용자 설정으로 실시간 계산합니다")
+    # 캐시 우선 사용 로직
+    try:
+        cache_data = cache_utils.load_cache('ou')
+        if cache_data and cache_utils.parameters_match_default('ou', params):
+            st.info("📋 캐시된 결과를 사용합니다 (통합 스크리너와 동일)")
+            enter_list = cache_data.get('enter_signals', [])
+            watch_list = cache_data.get('watch_signals', [])
+            prices = load_price_data()
+            asset_mapping = load_asset_names()
+        else:
+            st.info("🔄 사용자 설정으로 실시간 계산합니다")
+            # 메인 콘텐츠
+            with st.spinner("OU 평균회귀 페어 분석 중... 잠시만 기다려주세요."):
                 # 실시간 분석 실행
                 selected_pairs, prices = analyze_pairs(
                     formation_window, rolling_window, enter_threshold, exit_threshold,
@@ -541,12 +542,11 @@ def main():
                 # 실시간 분석 결과를 enter_list와 watch_list로 분리
                 enter_list = [p for p in selected_pairs if abs(p.get('current_zscore', 0)) >= enter_threshold]
                 watch_list = [p for p in selected_pairs if abs(p.get('current_zscore', 0)) < enter_threshold]
-            
-            asset_mapping = load_asset_names()  # 자산 이름 매핑 로딩
-            
-        except Exception as e:
-            st.error(f"분석 중 오류 발생: {str(e)}")
-            return
+                asset_mapping = load_asset_names()  # 자산 이름 매핑 로딩
+                
+    except Exception as e:
+        st.error(f"분석 중 오류 발생: {str(e)}")
+        return
     
     # 4개 탭 구성 (아이콘 + 명칭 통일)
     tab1, tab2, tab3, tab4 = st.tabs([
