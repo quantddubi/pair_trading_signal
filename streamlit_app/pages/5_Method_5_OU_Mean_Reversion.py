@@ -529,7 +529,18 @@ def main():
             prices = load_price_data()
             asset_mapping = load_asset_names()
         else:
+            # 디버깅: 파라미터 차이 확인
+            default_params = cache_utils.get_default_parameters('ou')
             st.info("🔄 사용자 설정으로 실시간 계산합니다")
+            
+            # 디버깅 정보 표시 (임시)
+            with st.expander("파라미터 비교 (디버깅)"):
+                st.write("현재 파라미터:", params)
+                st.write("기본 파라미터:", default_params)
+                if default_params:
+                    diff_keys = [k for k in params.keys() if params.get(k) != default_params.get(k)]
+                    st.write("다른 파라미터:", diff_keys)
+            
             # 메인 콘텐츠
             with st.spinner("OU 평균회귀 페어 분석 중... 잠시만 기다려주세요."):
                 # 실시간 분석 실행
