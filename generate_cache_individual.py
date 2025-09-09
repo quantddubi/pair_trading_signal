@@ -367,7 +367,7 @@ def generate_copula_cache():
     try:
         # 모듈 import
         copula_module = import_module_from_file("methods/7_copula_rank_correlation_pairs.py", "copula_pairs")
-        CopulaRankCorrelationPairTrading = copula_module.CopulaRankCorrelationPairTrading
+        CopulaBasedPairScreening = copula_module.CopulaBasedPairScreening
         
         # 데이터 로딩
         file_path = "data/MU Price(BBG).csv"
@@ -377,20 +377,11 @@ def generate_copula_cache():
         # 기본 파라미터로 분석 실행
         default_params = cache_utils.get_default_parameters('copula')
         
-        trader = CopulaRankCorrelationPairTrading(
-            formation_window=default_params['formation_window'],
-            signal_window=default_params['signal_window'],
-            enter_threshold=default_params['enter_threshold'],
-            exit_threshold=default_params['exit_threshold'],
-            stop_loss=default_params['stop_loss'],
-            min_half_life=default_params['min_half_life'],
-            max_half_life=default_params['max_half_life'],
-            min_cost_ratio=default_params['min_cost_ratio'],
-            min_rank_correlation=default_params['min_rank_correlation'],
-            min_tail_dependence=default_params['min_tail_dependence']
-        )
+        # 새로운 관대한 설정으로 CopulaBasedPairScreening 사용
+        screener = CopulaBasedPairScreening()  # 기본값 사용 (이미 관대하게 설정됨)
         
-        enter_list, watch_list = trader.screen_pairs(prices, n_pairs=20)
+        enter_list = screener.select_pairs(prices, n_pairs=20)
+        watch_list = []  # CopulaBasedPairScreening에서는 watch_list 분리 로직이 다름
         
         # 캐시 데이터 생성
         cache_data = {
