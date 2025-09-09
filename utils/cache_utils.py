@@ -104,17 +104,17 @@ def get_default_parameters(method_name: str) -> Dict:
             'max_pvalue': 0.05
         },
         'regime': {
-            'formation_window': 252,
-            'signal_window': 60,
-            'long_corr_window': 252,
-            'short_corr_window': 60,
-            'enter_threshold': 2.0,
+            'formation_window': 504,
+            'signal_window': 126,
+            'long_corr_window': 378,
+            'short_corr_window': 126,
+            'enter_threshold': 1.8,
             'exit_threshold': 0.5,
             'stop_loss': 3.0,
             'min_half_life': 5,
-            'max_half_life': 60,
-            'min_cost_ratio': 5.0,
-            'min_delta_corr': 0.3
+            'max_half_life': 90,
+            'min_cost_ratio': 3.0,
+            'min_delta_corr': 0.15
         },
         'ou': {
             'formation_window': 252,

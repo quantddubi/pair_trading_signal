@@ -252,8 +252,8 @@ def create_pair_chart(prices, asset1, asset2, formation_window, long_corr_window
     )
     
     # 상관관계 차이 기준선들
-    fig.add_hline(y=0.3, line_dash="dash", line_color="green", opacity=0.7, row=4, col=1)
-    fig.add_hline(y=-0.3, line_dash="dash", line_color="green", opacity=0.7, row=4, col=1)
+    fig.add_hline(y=0.15, line_dash="dash", line_color="green", opacity=0.7, row=4, col=1)
+    fig.add_hline(y=-0.15, line_dash="dash", line_color="green", opacity=0.7, row=4, col=1)
     fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5, row=4, col=1)
     
     # 5. Z-스코어
@@ -273,8 +273,8 @@ def create_pair_chart(prices, asset1, asset2, formation_window, long_corr_window
         )
         
         # Z-스코어 임계값 라인들
-        fig.add_hline(y=2.0, line_dash="dash", line_color="orange", opacity=0.7, row=5, col=1)
-        fig.add_hline(y=-2.0, line_dash="dash", line_color="orange", opacity=0.7, row=5, col=1)
+        fig.add_hline(y=1.8, line_dash="dash", line_color="orange", opacity=0.7, row=5, col=1)
+        fig.add_hline(y=-1.8, line_dash="dash", line_color="orange", opacity=0.7, row=5, col=1)
         fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5, row=5, col=1)
     
     # 최근 6개월 배경색 강조
@@ -352,35 +352,35 @@ def main():
     formation_window = st.sidebar.slider(
         "Formation Window (일)",
         min_value=100,
-        max_value=500,
-        value=252,
+        max_value=800,
+        value=504,
         step=50,
-        help="페어 선정을 위한 과거 데이터 기간"
+        help="페어 선정을 위한 과거 데이터 기간 (기본값: 2년)"
     )
     
     signal_window = st.sidebar.slider(
         "Signal Window (일)", 
         min_value=20, 
-        max_value=120, 
-        value=60,
-        help="Z-score 계산을 위한 롤링 윈도우"
+        max_value=300, 
+        value=126,
+        help="Z-score 계산을 위한 롤링 윈도우 (기본값: 6개월)"
     )
     
     long_corr_window = st.sidebar.slider(
         "장기 상관관계 윈도우 (일)",
         min_value=100,
-        max_value=500,
-        value=252,
+        max_value=600,
+        value=378,
         step=50,
-        help="장기 구조적 상관관계 계산 기간"
+        help="장기 구조적 상관관계 계산 기간 (기본값: 18개월)"
     )
     
     short_corr_window = st.sidebar.slider(
         "단기 상관관계 윈도우 (일)",
         min_value=20,
-        max_value=120,
-        value=60,
-        help="단기 상관관계 계산 기간"
+        max_value=300,
+        value=126,
+        help="단기 상관관계 계산 기간 (기본값: 6개월)"
     )
     
     st.sidebar.markdown("### 신호 설정")
@@ -389,9 +389,9 @@ def main():
         "진입 임계값 (Z-score)", 
         min_value=1.0, 
         max_value=3.0, 
-        value=2.0, 
+        value=1.8, 
         step=0.1,
-        help="이 값 이상일 때 진입 신호 생성"
+        help="이 값 이상일 때 진입 신호 생성 (기본값: 1.8)"
     )
     
     exit_threshold = st.sidebar.slider(
@@ -425,27 +425,27 @@ def main():
     max_half_life = st.sidebar.slider(
         "최대 반감기 (일)", 
         min_value=30, 
-        max_value=120, 
-        value=60,
-        help="평균회귀 최대 속도 기준"
+        max_value=150, 
+        value=90,
+        help="평균회귀 최대 속도 기준 (기본값: 90일)"
     )
     
     min_cost_ratio = st.sidebar.slider(
         "최소 비용비율", 
         min_value=1.0, 
         max_value=10.0, 
-        value=5.0, 
+        value=3.0, 
         step=0.5,
-        help="거래비용 대비 수익 최소 비율"
+        help="거래비용 대비 수익 최소 비율 (기본값: 3.0)"
     )
     
     min_delta_corr = st.sidebar.slider(
         "최소 상관관계 변화", 
-        min_value=0.1, 
+        min_value=0.05, 
         max_value=0.8, 
-        value=0.3, 
-        step=0.1,
-        help="레짐 변화로 인정할 최소 상관관계 차이"
+        value=0.15, 
+        step=0.05,
+        help="레짐 변화로 인정할 최소 상관관계 차이 (기본값: 0.15)"
     )
     
     n_pairs = st.sidebar.slider(
@@ -641,11 +641,11 @@ def main():
                         - **상단**: 두 자산의 정규화된 가격 추이
                         - **2번째**: 장기 상관관계 (구조적 기본 관계)
                         - **3번째**: 단기 상관관계 (최근 변화 추세)
-                        - **4번째**: 상관관계 차이 (레짐 변화 신호) - ±0.3 이상시 유의미
+                        - **4번째**: 상관관계 차이 (레짐 변화 신호) - ±0.15 이상시 유의미
                         - **하단**: Z-스코어 (평균회귀 진입 신호)
                         - **노란색 배경**: 최근 6개월 기간
-                        - **초록색 선**: 레짐 변화 임계값 (±0.3)
-                        - **주황색 선**: 진입 임계값 (±2.0)
+                        - **초록색 선**: 레짐 변화 임계값 (±0.15)
+                        - **주황색 선**: 진입 임계값 (±1.8)
                         """)
         
         else:
@@ -687,8 +687,8 @@ def main():
         # STEP별 작동 과정 (상관관계 레짐 특화)
         st.markdown("#### STEP 1: 이중 상관관계 추적")
         st.info("""
-        - **장기 상관관계 (252일)**: 구조적 기본 관계 추적
-        - **단기 상관관계 (60일)**: 최근 변화 추세 포착
+        - **장기 상관관계 (378일)**: 구조적 기본 관계 추적 (18개월)
+        - **단기 상관관계 (126일)**: 최근 변화 추세 포착 (6개월)
         - 두 상관관계를 동시에 모니터링하여 레짐 변화 감지
         """)
         
@@ -697,7 +697,7 @@ def main():
         - **Δ상관관계 = 단기상관 - 장기상관** 계산
         - **양수**: 최근 상관관계 증가 (동조화) → 기회 감소
         - **음수**: 최근 상관관계 감소 (독립화) → 페어트레이딩 기회!
-        - **임계값**: |Δ상관관계| > 0.3 시 유의미한 레짐 변화
+        - **임계값**: |Δ상관관계| > 0.15 시 유의미한 레짐 변화 (완화된 기준)
         """)
         
         st.markdown("#### STEP 3: 가격 괴리 확인")
@@ -709,9 +709,9 @@ def main():
         
         st.markdown("#### STEP 4: 품질 필터링")
         st.info("""
-        - **Δ상관관계 최소값**: 충분한 레짐 변화 확인
-        - **Half-Life**: 적절한 평균회귀 속도 (5-60일)
-        - **비용비율**: 거래비용 대비 수익성 검증
+        - **Δ상관관계 최소값**: 0.15 이상 (충분한 레짐 변화 확인)
+        - **Half-Life**: 적절한 평균회귀 속도 (5-90일)
+        - **비용비율**: 거래비용 대비 수익성 검증 (3.0 이상)
         """)
         
         st.markdown("#### STEP 5: 타이밍 최적화")
@@ -741,14 +741,14 @@ def main():
         st.markdown("#### ⚡ 레짐 변화 감지 메커니즘")
         st.markdown("""
         **1. 이중 상관관계 추적**
-        - **장기 상관관계 (252일)**: 구조적 기본 관계 (시장 전반의 기본 연동성)
-        - **단기 상관관계 (60일)**: 최근 변화 추세 (단기 시장 충격/뉴스 반응)
+        - **장기 상관관계 (378일)**: 구조적 기본 관계 (시장 전반의 기본 연동성, 18개월)
+        - **단기 상관관계 (126일)**: 최근 변화 추세 (단기 시장 충격/뉴스 반응, 6개월)
         
         **2. 레짐 변화 신호**
         - **Δ상관관계 = 단기상관 - 장기상관**
         - **양수**: 최근 상관관계 증가 (더 동조화) → 분산 기회 감소
         - **음수**: 최근 상관관계 감소 (독립적 움직임) → 페어트레이딩 기회!
-        - **임계값**: |Δ상관관계| > 0.3 시 유의미한 레짐 변화로 판단
+        - **임계값**: |Δ상관관계| > 0.15 시 유의미한 레짐 변화로 판단 (완화된 기준)
         """)
         
         st.markdown("#### 🎪 활용 시나리오")
@@ -783,10 +783,10 @@ def main():
         
         st.markdown("#### 🔧 품질 필터링")
         st.info("""
-        **Δ상관관계 최소값**: 0.3 이상 (충분한 레짐 변화)
-        **Half-Life**: 5~60일 (적절한 평균회귀 속도)
-        **기본 평균회귀**: Z-Score 기반 진입/청산 신호 동일 적용
-        **비용비율**: 거래비용 대비 수익성 검증
+        **Δ상관관계 최소값**: 0.15 이상 (충분한 레짐 변화, 완화된 기준)
+        **Half-Life**: 5~90일 (적절한 평균회귀 속도)
+        **진입 임계값**: Z-Score 1.8 이상 (완화된 기준)
+        **비용비율**: 거래비용 대비 수익성 검증 (3.0 이상)
         """)
     
     # =====================================================
@@ -797,10 +797,10 @@ def main():
         
         st.markdown("#### 1. 이중 상관관계 계산")
         st.latex(r'''
-        \text{장기 상관관계: } \rho_{long}(t) = \text{corr}(X_{t-252:t}, Y_{t-252:t})
+        \text{장기 상관관계: } \rho_{long}(t) = \text{corr}(X_{t-378:t}, Y_{t-378:t})
         ''')
         st.latex(r'''
-        \text{단기 상관관계: } \rho_{short}(t) = \text{corr}(X_{t-60:t}, Y_{t-60:t})
+        \text{단기 상관관계: } \rho_{short}(t) = \text{corr}(X_{t-126:t}, Y_{t-126:t})
         ''')
         
         st.markdown("#### 2. 레짐 변화 신호 (Δ상관관계)")
@@ -812,7 +812,7 @@ def main():
         st.markdown("""
         - $\Delta\rho > 0$: 최근 상관관계 증가 (동조화) → 기회 감소
         - $\Delta\rho < 0$: 최근 상관관계 감소 (독립화) → 페어트레이딩 기회
-        - $|\Delta\rho| > 0.3$: 유의미한 레짐 변화
+        - $|\Delta\rho| > 0.15$: 유의미한 레짐 변화 (완화된 기준)
         """)
         
         st.markdown("#### 3. Z-스코어 계산 (기본 평균회귀)")
@@ -841,10 +841,10 @@ def main():
         st.markdown("#### 5. 진입 조건")
         st.code("""
         진입 조건:
-        1. |Δ상관관계| > min_delta_corr (기본값: 0.3)
-        2. |Z-Score| > enter_threshold (기본값: 2.0)
-        3. min_half_life < Half-Life < max_half_life (기본값: 5-60일)
-        4. 비용비율 > min_cost_ratio (기본값: 5.0)
+        1. |Δ상관관계| > min_delta_corr (기본값: 0.15)
+        2. |Z-Score| > enter_threshold (기본값: 1.8)
+        3. min_half_life < Half-Life < max_half_life (기본값: 5-90일)
+        4. 비용비율 > min_cost_ratio (기본값: 3.0)
         """)
         
         st.markdown("#### 6. 계산 예시")
@@ -872,22 +872,22 @@ Half-Life: {example_pair.get('half_life', 0.0):.1f}일
                 delta_corr = example_pair.get('delta_correlation', 0.0)
                 st.code(f"""
 Δ상관관계: {delta_corr:.3f}
-레짐 변화: {'유의미' if abs(delta_corr) > 0.3 else '미미'}
-진입 신호: {'진입' if abs(example_pair['current_zscore']) > 2.0 else '관찰'}
+레짐 변화: {'유의미' if abs(delta_corr) > 0.15 else '미미'}
+진입 신호: {'진입' if abs(example_pair['current_zscore']) > 1.8 else '관찰'}
 방향: {example_pair.get('direction', '관찰중')}
                 """)
         
         st.markdown("#### 7. 상관관계 윈도우 최적화")
         st.info("""
-        **장기 윈도우 (252일)**:
-        - 1년 거래일 기준
+        **장기 윈도우 (378일)**:
+        - 18개월 거래일 기준 (1.5년)
         - 구조적 기본 관계 포착
-        - 너무 짧으면 노이즈, 너무 길면 구조 변화 반영 지연
+        - 레짐 변화를 안정적으로 감지하기 위한 충분한 기간
         
-        **단기 윈도우 (60일)**:
-        - 3개월 거래일 기준  
+        **단기 윈도우 (126일)**:
+        - 6개월 거래일 기준  
         - 최근 변화 추세 민감하게 포착
-        - 너무 짧으면 과도한 변동성, 너무 길면 반응 지연
+        - 과도한 노이즈 방지와 반응성의 균형점
         """)
     
     # 푸터

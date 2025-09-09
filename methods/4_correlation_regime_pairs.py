@@ -76,16 +76,20 @@ class CorrelationRegimePairTrading:
         
         # 공통 인덱스
         common_idx = returns1.index.intersection(returns2.index)
-        if len(common_idx) < max(self.long_corr_window, self.short_corr_window):
+        # pct_change()로 인해 데이터가 1개 줄어들므로, formation_window - 1과 비교
+        min_required = max(self.long_corr_window - 1, self.short_corr_window)
+        if len(common_idx) < min_required:
             return 0, 0, 0
             
         returns1_common = returns1[common_idx]
         returns2_common = returns2[common_idx]
         
         # 장기 상관관계 (최근 12개월)
-        if len(returns1_common) >= self.long_corr_window:
-            long_corr = returns1_common.tail(self.long_corr_window).corr(
-                returns2_common.tail(self.long_corr_window)
+        # formation_window가 252일이면 수익률은 251일이므로, 251일을 사용
+        long_window = min(self.long_corr_window, len(returns1_common))
+        if long_window >= self.short_corr_window:  # 최소한 단기 윈도우만큼은 있어야 함
+            long_corr = returns1_common.tail(long_window).corr(
+                returns2_common.tail(long_window)
             )
         else:
             long_corr = returns1_common.corr(returns2_common)
@@ -258,8 +262,9 @@ class CorrelationRegimePairTrading:
         """
         asset1, asset2 = pair_info['asset1'], pair_info['asset2']
         
-        # 최근 데이터 확보
-        recent_data = prices[[asset1, asset2]].tail(self.signal_window * 2).fillna(method='ffill')
+        # 최근 데이터 확보 (상관관계 계산을 위해 더 긴 기간 필요)
+        required_data_length = max(self.long_corr_window, self.signal_window * 2)
+        recent_data = prices[[asset1, asset2]].tail(required_data_length).fillna(method='ffill')
         
         if len(recent_data) < self.signal_window:
             return {'status': 'insufficient_data'}
@@ -383,17 +388,17 @@ def main():
     
     # 상관관계 레짐 전환 기반 페어트레이딩 객체 생성
     regime_trader = CorrelationRegimePairTrading(
-        formation_window=252,      # 1년
-        signal_window=60,          # 3개월
-        long_corr_window=252,      # 장기 상관관계: 12개월
-        short_corr_window=60,      # 단기 상관관계: 3개월
-        enter_threshold=2.0,
+        formation_window=504,      # 2년 (균형)
+        signal_window=126,         # 6개월 (균형)
+        long_corr_window=378,      # 장기 상관관계: 18개월
+        short_corr_window=126,     # 단기 상관관계: 6개월
+        enter_threshold=1.8,       # 진입 임계값 완화
         exit_threshold=0.5,
         stop_loss=3.0,
         min_half_life=5,
-        max_half_life=60,
-        min_cost_ratio=5.0,
-        min_delta_corr=0.3         # 30% 이상 상관관계 변화
+        max_half_life=90,          
+        min_cost_ratio=3.0,        # 비용 조건 완화
+        min_delta_corr=0.15        # 레짐 변화 기준 추가 완화 (15%)
     )
     
     # 페어 스크리닝 (섹터별)
