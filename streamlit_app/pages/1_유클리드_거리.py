@@ -641,7 +641,7 @@ def main():
             | > 20 | 상이 | ❌ 부적합 |
             """)
     
-    with tab2:
+    with tab3:
         st.info("""
         ### 유클리드 거리 기반 페어 선정 방법론
         
@@ -664,7 +664,7 @@ def main():
         **장점**: 계산 속도 빠름, 직관적 이해 가능, 강력한 평균회귀 신호 포착
         """)
     
-    with tab3:
+    with tab4:
         st.markdown("### 수학적 기초 및 계산 과정")
         
         col1, col2 = st.columns(2)
