@@ -254,6 +254,16 @@ def main():
     # 방법론별 페어 선정 현황
     st.subheader("방법론별 페어 선정 현황")
     
+    # 방법론별 진입 페어 수집
+    method_pairs = {}
+    for method in methods:
+        cache_data = cache_utils.load_cache(method)
+        if cache_data:
+            enter_signals = cache_data.get('enter_signals', [])
+            method_pairs[method] = [signal['pair'] for signal in enter_signals]
+        else:
+            method_pairs[method] = []
+    
     # 방법론별 페어 리스트 표시
     method_cols = st.columns(len(methods))
     for i, (method, name, icon) in enumerate(zip(methods, method_names, method_icons)):
