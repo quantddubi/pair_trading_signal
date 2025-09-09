@@ -1,19 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git add:*)",
-      "Bash(python:*)",
-      "Bash(C:UsersinfomaxPycharmProjectspair_trading_signal.venvScriptspython.exe generate_cache.py)",
-      "Bash(head:*)",
-      "Bash(find:*)",
-      "Bash(sed:*)",
-      "Bash(streamlit run:*)",
-      "Bash(C:UsersinfomaxPycharmProjectspair_trading_signal.venvScriptspython.exe methods5_ou_mean_reversion_pairs.py)",
-      "Bash(\"C:\\Users\\infomax\\PycharmProjects\\pair_trading_signal\\.venv\\Scripts\\python.exe\" generate_cache.py)",
-      "Bash(\"C:\\Users\\infomax\\PycharmProjects\\pair_trading_signal\\.venv\\Scripts\\python.exe\" methods5_ou_mean_reversion_pairs.py)",
-      "Bash(C:/Users/infomax/PycharmProjects/pair_trading_signal/.venv/Scripts/python.exe 5_ou_mean_reversion_pairs.py)",
-      "Bash(C:/Users/infomax/PycharmProjects/pair_trading_signal/.venv/Scripts/python.exe methods/5_ou_mean_reversion_pairs.py)",
-      "Bash(\"C:\\Users\\infomax\\PycharmProjects\\pair_trading_signal\\.venv\\Scripts\\python.exe\" -c \"\nimport sys\nsys.path.insert(0, ''.'')\nfrom generate_cache import generate_ou_cache\ngenerate_ou_cache()\n\")"
+      "Bash(dir:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []

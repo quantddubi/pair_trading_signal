@@ -332,7 +332,13 @@ def create_pair_chart(prices, asset1, asset2, formation_window, long_corr_window
     
     return fig
 
-# def check_parameters_default 삭제 (중복 제거)
+def check_parameters_default(params):
+    """파라미터가 기본값인지 확인"""
+    default_params = cache_utils.get_default_parameters('regime')
+    for key, value in default_params.items():
+        if params.get(key) != value:
+            return False
+    return True
 
 # 메인 앱
 def main():

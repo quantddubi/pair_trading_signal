@@ -580,6 +580,8 @@ def main():
                 if cache_data:
                     enter_list = cache_data.get('enter_signals', [])
                     watch_list = cache_data.get('watch_signals', [])
+                    # OU에서는 enter_list와 watch_list를 합쳐서 selected_pairs로 사용
+                    selected_pairs = enter_list + watch_list
                     prices = load_price_data()
                 else:
                     st.error("캐시 데이터를 찾을 수 없음")
@@ -629,7 +631,14 @@ def main():
         # 테이블 데이터 준비
         table_data = []
         for i, pair_info in enumerate(selected_pairs, 1):
-            formatted_pair = format_pair_name(pair_info['pair'], asset_mapping)
+            # OU 메서드는 asset1, asset2 키를 사용하고, 캐시는 pair 키를 사용
+            if 'pair' in pair_info:
+                formatted_pair = format_pair_name(pair_info['pair'], asset_mapping)
+            else:
+                # asset1, asset2로부터 pair 생성
+                pair_str = f"{pair_info['asset1']}-{pair_info['asset2']}"
+                formatted_pair = format_pair_name(pair_str, asset_mapping)
+            
             table_data.append({
                 "순위": i,
                 "페어": formatted_pair,
@@ -667,12 +676,24 @@ def main():
         
         # 최고 추천 페어 표시
         top_pair = selected_pairs[0]
-        top_formatted_pair = format_pair_name(top_pair['pair'], asset_mapping)
+        if 'pair' in top_pair:
+            top_pair_str = top_pair['pair']
+        else:
+            top_pair_str = f"{top_pair['asset1']}-{top_pair['asset2']}"
+        top_formatted_pair = format_pair_name(top_pair_str, asset_mapping)
         st.success(f"최고 품질 페어: {top_formatted_pair}")
         
         # 페어 선택 옵션 (표시는 포맷팅된 이름, 값은 원래 페어)
-        pair_options = [pair_info['pair'] for pair_info in selected_pairs]
-        pair_display_names = [format_pair_name(pair_info['pair'], asset_mapping) for pair_info in selected_pairs]
+        # pair 키가 있으면 사용, 없으면 asset1-asset2로 생성
+        pair_options = []
+        pair_display_names = []
+        for pair_info in selected_pairs:
+            if 'pair' in pair_info:
+                pair_str = pair_info['pair']
+            else:
+                pair_str = f"{pair_info['asset1']}-{pair_info['asset2']}"
+            pair_options.append(pair_str)
+            pair_display_names.append(format_pair_name(pair_str, asset_mapping))
         
         # selectbox에서 표시할 옵션들 생성
         pair_mapping = {display: original for display, original in zip(pair_display_names, pair_options)}
