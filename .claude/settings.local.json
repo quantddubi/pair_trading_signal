@@ -3,7 +3,9 @@
     "allow": [
       "Bash(dir:*)",
       "Bash(python:*)",
-      "Bash(move:*)"
+      "Bash(move:*)",
+      "WebSearch",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []
