@@ -51,14 +51,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 캐시된 데이터 로딩
-@st.cache_data
+# 데이터 로딩 (캐시 없음 - 항상 최신 데이터 로드)
 def load_price_data():
     """가격 데이터 로딩"""
     file_path = get_data_file_path()
     return load_data(file_path)
 
-@st.cache_data
 def load_asset_names():
     """자산 이름 매핑 로딩 (CSV 파일의 1행: 티커, 2행: 이름)"""
     file_path = get_data_file_path()
@@ -95,8 +93,7 @@ def check_parameters_default(params):
     return True
 
 # 페어 분석 함수
-@st.cache_data
-def analyze_pairs(formation_window, min_tail_dependence, conditional_prob_threshold, 
+def analyze_pairs(formation_window, min_tail_dependence, conditional_prob_threshold,
                   min_kendall_tau, min_data_coverage, copula_consistency_threshold, n_pairs):
     """페어 분석 실행"""
     prices = load_price_data()
@@ -564,7 +561,7 @@ def main():
     
     # 분석 실행 버튼
     if st.sidebar.button("🚀 분석 실행", type="primary"):
-        st.cache_data.clear()
+        pass  # 캐시 사용 안 함
     
     # 추가 파라미터 (숨김)
     min_data_coverage = 0.85

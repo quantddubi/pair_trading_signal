@@ -51,14 +51,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 캐시된 데이터 로딩
-@st.cache_data
+# 데이터 로딩 (캐시 없음 - 항상 최신 데이터 로드)
 def load_price_data():
     """가격 데이터 로딩"""
     file_path = get_data_file_path()
     return load_data(file_path)
 
-@st.cache_data
 def load_asset_names():
     """자산 이름 매핑 로딩 (CSV 파일의 1행: 티커, 2행: 이름)"""
     file_path = get_data_file_path()
@@ -87,7 +85,6 @@ def format_pair_name(pair, asset_mapping):
     return f"{name1}({asset1}) - {name2}({asset2})"
 
 # 페어 분석 함수
-@st.cache_data
 def analyze_pairs(formation_window, signal_window, enter_threshold, exit_threshold, stop_loss, min_half_life, max_half_life, min_cost_ratio, max_pvalue, n_pairs):
     """페어 분석 실행 (캐시 우선 사용)"""
     

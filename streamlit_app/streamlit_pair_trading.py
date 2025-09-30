@@ -50,14 +50,12 @@ st.title("Find pairs")
 st.markdown("---")
 
 
-# 캐시된 데이터 로딩 함수들
-@st.cache_data
+# 데이터 로딩 함수들 (캐시 없음 - 항상 최신 데이터 로드)
 def load_price_data():
     """가격 데이터 로딩"""
     file_path = get_data_file_path()
     return load_data(file_path)
 
-@st.cache_data
 def load_asset_names():
     """자산 이름 매핑 로딩 (CSV 파일의 1행: 티커, 2행: 이름)"""
     file_path = get_data_file_path()

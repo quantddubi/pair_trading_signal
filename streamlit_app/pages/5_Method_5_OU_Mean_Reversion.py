@@ -81,8 +81,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 가격 데이터 로딩
-@st.cache_data(ttl=3600)
+# 가격 데이터 로딩 (캐시 없음 - 항상 최신 데이터 로드)
 def load_price_data():
     """가격 데이터 로딩"""
     data_path = get_data_file_path()
@@ -92,7 +91,6 @@ def load_price_data():
     return prices
 
 # 자산명 매핑 로딩
-@st.cache_data(ttl=3600)
 def load_asset_names():
     """자산 이름 매핑 로딩"""
     return cache_utils.get_asset_mapping()
@@ -498,7 +496,7 @@ def main():
     
     # 분석 실행 버튼
     if st.sidebar.button("Run Analysis", type="primary"):
-        st.cache_data.clear()  # 캐시 클리어
+        pass  # 캐시 사용 안 함
     
     # 파라미터 딕셔너리
     params = {
