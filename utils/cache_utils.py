@@ -71,82 +71,82 @@ def get_default_parameters(method_name: str) -> Dict:
     
     defaults = {
         'euclidean': {
-            'formation_window': 756,
-            'signal_window': 756,
+            'formation_window': 1512,  # 6년 (장기 분석)
+            'signal_window': 378,      # 1.5년
             'enter_threshold': 2.0,
             'exit_threshold': 0.5,
             'stop_loss': 3.0,
             'min_half_life': 5,
-            'max_half_life': 60,
+            'max_half_life': 180,      # 6개월 (장기)
             'min_cost_ratio': 5.0,
             'transaction_cost': 0.0001
         },
         'ssd': {
-            'formation_window': 252,
-            'signal_window': 252,
+            'formation_window': 1008,  # 4년 (장기 분석)
+            'signal_window': 252,      # 1년
             'enter_threshold': 2.0,
             'exit_threshold': 0.5,
             'stop_loss': 3.0,
             'min_half_life': 5,
-            'max_half_life': 60,
+            'max_half_life': 180,      # 6개월 (장기)
             'min_cost_ratio': 5.0,
             'transaction_cost': 0.0001
         },
         'cointegration': {
-            'formation_window': 252,
-            'signal_window': 60,
+            'formation_window': 756,   # 3년 (장기 분석)
+            'signal_window': 126,      # 6개월
             'enter_threshold': 2.0,
             'exit_threshold': 0.5,
             'stop_loss': 3.0,
             'min_half_life': 5,
-            'max_half_life': 60,
+            'max_half_life': 252,      # 1년 (장기)
             'min_cost_ratio': 5.0,
             'max_pvalue': 0.05
         },
         'regime': {
-            'formation_window': 504,
-            'signal_window': 126,
-            'long_corr_window': 378,
-            'short_corr_window': 126,
+            'formation_window': 1008,  # 4년 (장기 분석)
+            'signal_window': 252,      # 1년
+            'long_corr_window': 504,   # 2년
+            'short_corr_window': 126,  # 6개월
             'enter_threshold': 1.8,
             'exit_threshold': 0.5,
             'stop_loss': 3.0,
             'min_half_life': 5,
-            'max_half_life': 90,
+            'max_half_life': 180,      # 6개월 (장기)
             'min_cost_ratio': 3.0,
             'min_delta_corr': 0.15
         },
         'ou': {
-            'formation_window': 252,
-            'signal_window': 60,
+            'formation_window': 756,   # 3년 (장기 분석)
+            'signal_window': 126,      # 6개월
             'enter_threshold': 2.0,
             'exit_threshold': 0.5,
             'stop_loss': 3.0,
             'min_half_life': 5,
-            'max_half_life': 60,
+            'max_half_life': 252,      # 1년 (장기)
             'min_cost_ratio': 5.0,
             'min_mean_reversion_speed': 0.01
         },
         'clustering': {
-            'formation_window': 252,
-            'signal_window': 60,
+            'formation_window': 756,   # 3년 (장기 분석)
+            'signal_window': 126,      # 6개월
             'enter_threshold': 2.0,
             'exit_threshold': 0.5,
             'stop_loss': 3.0,
             'min_half_life': 5,
-            'max_half_life': 60,
+            'max_half_life': 180,      # 6개월 (장기)
             'min_cost_ratio': 5.0,
             'n_clusters': 8,
             'clustering_method': 'kmeans'
         },
         'copula': {
-            'formation_window': 252,
-            'signal_window': 60,
+            'formation_window': 756,   # 3년 (장기 분석)
+            'signal_window': 126,      # 6개월
             'enter_threshold': 2.0,
             'exit_threshold': 0.5,
             'stop_loss': 3.0,
             'min_half_life': 5,
-            'max_half_life': 60,
+            'max_half_life': 180,      # 6개월 (장기)
             'min_cost_ratio': 5.0,
             'min_rank_correlation': 0.7,
             'min_tail_dependence': 0.2
