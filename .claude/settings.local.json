@@ -6,7 +6,8 @@
       "Bash(move:*)",
       "WebSearch",
       "Bash(rm:*)",
-      "Bash(tail:*)"
+      "Bash(tail:*)",
+      "Bash(echo $HOME)"
     ],
     "deny": [],
     "ask": []
