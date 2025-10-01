@@ -5,7 +5,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import plotly.figure_factory as ff
 from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
 from scipy.spatial.distance import pdist, squareform
 from sklearn.decomposition import PCA
@@ -218,22 +217,59 @@ def create_dendrogram_plot(linkage_matrix, labels, title="Asset Dendrogram"):
     Returns:
         fig: plotly figure
     """
-    # Dendrogram 생성
-    fig = ff.create_dendrogram(
+    # scipy dendrogram 계산 (orientation='bottom')
+    import matplotlib
+    matplotlib.use('Agg')  # GUI 없이 사용
+
+    dendro = dendrogram(
         linkage_matrix,
         labels=labels,
-        orientation='left',
-        linkagefun=lambda x: linkage_matrix
+        orientation='bottom',
+        no_plot=True
     )
+
+    # Plotly로 dendrogram 그리기
+    icoord = np.array(dendro['icoord'])
+    dcoord = np.array(dendro['dcoord'])
+
+    # 선 그리기
+    fig = go.Figure()
+
+    for i in range(len(icoord)):
+        fig.add_trace(go.Scatter(
+            x=icoord[i],
+            y=dcoord[i],
+            mode='lines',
+            line=dict(color='rgb(100,100,100)', width=1),
+            hoverinfo='skip',
+            showlegend=False
+        ))
+
+    # 레이블 위치
+    label_coords = dendro['leaves']
+    label_positions = [(i * 10 + 5) for i in range(len(label_coords))]
+    label_texts = [labels[dendro['leaves'][i]] for i in range(len(label_coords))]
 
     fig.update_layout(
         title=title,
-        width=1000,
-        height=max(400, len(labels) * 20),  # 자산 수에 따라 높이 조정
-        xaxis=dict(title="Distance"),
-        yaxis=dict(title="Assets"),
-        margin=dict(l=200, r=50, t=100, b=50),
-        font=dict(size=10)
+        width=1400,
+        height=700,
+        xaxis=dict(
+            title="Assets",
+            tickmode='array',
+            tickvals=label_positions,
+            ticktext=label_texts,
+            tickangle=-45,
+            showgrid=False
+        ),
+        yaxis=dict(
+            title="Distance",
+            showgrid=True
+        ),
+        margin=dict(l=80, r=50, t=100, b=200),
+        font=dict(size=9),
+        plot_bgcolor='white',
+        hovermode='closest'
     )
 
     return fig
@@ -416,7 +452,7 @@ def main():
 
             # Dendrogram 생성
             st.markdown("### 🌳 Asset Dendrogram")
-            st.info("계층적 군집분석 결과를 나타내는 Dendrogram입니다. 세로축은 자산, 가로축은 거리를 나타냅니다.")
+            st.info("계층적 군집분석 결과를 나타내는 Dendrogram입니다. 가로축은 자산, 세로축은 거리를 나타냅니다.")
 
             dendrogram_fig = create_dendrogram_plot(
                 linkage_matrix,
