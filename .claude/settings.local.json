@@ -1,13 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir:*)",
-      "Bash(python:*)",
-      "Bash(move:*)",
-      "WebSearch",
-      "Bash(rm:*)",
-      "Bash(tail:*)",
-      "Bash(echo $HOME)"
+      "Bash(\"C:\\Users\\infomax\\anaconda3\\python.exe\":*)"
     ],
     "deny": [],
     "ask": []

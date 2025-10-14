@@ -2,9 +2,15 @@
 캐시 관리 유틸리티 함수들
 """
 import os
+import sys
 import pickle
 from datetime import datetime
 from typing import Dict, Optional, Tuple, List
+
+# config 모듈 import
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+from config.default_parameters import get_default_parameters as get_config_params
 
 def load_cache(method_name: str, parameters: Dict = None) -> Optional[Dict]:
     """
@@ -17,10 +23,10 @@ def load_cache(method_name: str, parameters: Dict = None) -> Optional[Dict]:
     Returns:
         캐시 데이터 또는 None
     """
-    # 절대 경로로 캐시 파일 지정
+    # 절대 경로로 캐시 파일 지정 (cache/data/ 하위 폴더)
     current_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(current_dir)
-    cache_file = os.path.join(project_root, "cache", f"{method_name}_default.pkl")
+    cache_file = os.path.join(project_root, "cache", "data", f"{method_name}_default.pkl")
     
     if not os.path.exists(cache_file):
         return None
@@ -67,93 +73,19 @@ def is_cache_valid(method_name: str, max_age_hours: int = 24) -> bool:
         return False
 
 def get_default_parameters(method_name: str) -> Dict:
-    """각 방법론의 기본 파라미터 반환"""
-    
-    defaults = {
-        'euclidean': {
-            'formation_window': 1512,  # 6년 (장기 분석)
-            'signal_window': 378,      # 1.5년
-            'enter_threshold': 2.0,
-            'exit_threshold': 0.5,
-            'stop_loss': 3.0,
-            'min_half_life': 5,
-            'max_half_life': 180,      # 6개월 (장기)
-            'min_cost_ratio': 5.0,
-            'transaction_cost': 0.0001
-        },
-        'ssd': {
-            'formation_window': 1008,  # 4년 (장기 분석)
-            'signal_window': 252,      # 1년
-            'enter_threshold': 2.0,
-            'exit_threshold': 0.5,
-            'stop_loss': 3.0,
-            'min_half_life': 5,
-            'max_half_life': 180,      # 6개월 (장기)
-            'min_cost_ratio': 5.0,
-            'transaction_cost': 0.0001
-        },
-        'cointegration': {
-            'formation_window': 756,   # 3년 (장기 분석)
-            'signal_window': 126,      # 6개월
-            'enter_threshold': 2.0,
-            'exit_threshold': 0.5,
-            'stop_loss': 3.0,
-            'min_half_life': 5,
-            'max_half_life': 252,      # 1년 (장기)
-            'min_cost_ratio': 5.0,
-            'max_pvalue': 0.05
-        },
-        'regime': {
-            'formation_window': 1008,  # 4년 (장기 분석)
-            'signal_window': 252,      # 1년
-            'long_corr_window': 504,   # 2년
-            'short_corr_window': 126,  # 6개월
-            'enter_threshold': 1.8,
-            'exit_threshold': 0.5,
-            'stop_loss': 3.0,
-            'min_half_life': 5,
-            'max_half_life': 180,      # 6개월 (장기)
-            'min_cost_ratio': 3.0,
-            'min_delta_corr': 0.15
-        },
-        'ou': {
-            'formation_window': 756,   # 3년 (장기 분석)
-            'signal_window': 126,      # 6개월
-            'enter_threshold': 2.0,
-            'exit_threshold': 0.5,
-            'stop_loss': 3.0,
-            'min_half_life': 5,
-            'max_half_life': 252,      # 1년 (장기)
-            'min_cost_ratio': 5.0,
-            'min_mean_reversion_speed': 0.01
-        },
-        'clustering': {
-            'formation_window': 756,   # 3년 (장기 분석)
-            'signal_window': 126,      # 6개월
-            'enter_threshold': 2.0,
-            'exit_threshold': 0.5,
-            'stop_loss': 3.0,
-            'min_half_life': 5,
-            'max_half_life': 180,      # 6개월 (장기)
-            'min_cost_ratio': 5.0,
-            'n_clusters': 8,
-            'clustering_method': 'kmeans'
-        },
-        'copula': {
-            'formation_window': 756,   # 3년 (장기 분석)
-            'signal_window': 126,      # 6개월
-            'enter_threshold': 2.0,
-            'exit_threshold': 0.5,
-            'stop_loss': 3.0,
-            'min_half_life': 5,
-            'max_half_life': 180,      # 6개월 (장기)
-            'min_cost_ratio': 5.0,
-            'min_rank_correlation': 0.7,
-            'min_tail_dependence': 0.2
-        }
-    }
-    
-    return defaults.get(method_name, {})
+    """
+    각 방법론의 기본 파라미터 반환
+
+    이제 config.default_parameters에서 중앙화된 파라미터를 가져옵니다.
+    Single Source of Truth를 유지합니다.
+
+    Args:
+        method_name: 방법론 이름
+
+    Returns:
+        해당 방법론의 기본 파라미터 딕셔너리
+    """
+    return get_config_params(method_name)
 
 def parameters_match_default(method_name: str, user_params: Dict) -> bool:
     """사용자 파라미터가 기본값과 일치하는지 확인"""
