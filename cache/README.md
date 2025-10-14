@@ -6,8 +6,15 @@
 
 ```
 cache/
-├── generate_cache.py      # 캐시 생성 스크립트
-├── data/                  # 생성된 캐시 파일 저장 위치
+├── generate_cache.py                    # 전체 캐시 생성 스크립트
+├── generate_euclidean_cache.py         # Euclidean Distance 개별 캐시 생성
+├── generate_ssd_cache.py               # SSD Distance 개별 캐시 생성
+├── generate_cointegration_cache.py     # Cointegration 개별 캐시 생성
+├── generate_regime_cache.py            # Correlation Regime 개별 캐시 생성
+├── generate_ou_cache.py                # OU Mean Reversion 개별 캐시 생성
+├── generate_clustering_cache.py        # Clustering 개별 캐시 생성
+├── generate_copula_cache.py            # Copula 개별 캐시 생성
+├── data/                               # 생성된 캐시 파일 저장 위치
 │   ├── euclidean_default.pkl
 │   ├── ssd_default.pkl
 │   ├── cointegration_default.pkl
@@ -20,12 +27,41 @@ cache/
 
 ## 캐시 생성 방법
 
+### 1. 모든 방법론 캐시를 한 번에 생성
+
 ```bash
 # cache 폴더에서 실행
 python generate_cache.py
 
 # 또는 프로젝트 루트에서 실행
 python cache/generate_cache.py
+```
+
+### 2. 개별 방법론 캐시만 생성
+
+각 방법론별로 개별 스크립트를 실행할 수 있습니다:
+
+```bash
+# Euclidean Distance
+python cache/generate_euclidean_cache.py
+
+# SSD Distance
+python cache/generate_ssd_cache.py
+
+# Cointegration
+python cache/generate_cointegration_cache.py
+
+# Correlation Regime
+python cache/generate_regime_cache.py
+
+# OU Mean Reversion
+python cache/generate_ou_cache.py
+
+# Clustering
+python cache/generate_clustering_cache.py
+
+# Copula Rank Correlation
+python cache/generate_copula_cache.py
 ```
 
 ## 캐시 파일 위치
